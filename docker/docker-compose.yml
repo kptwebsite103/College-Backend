@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  # Application
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: kpt-website-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongodb:27017/kpt_website
+      - REDIS_URL=redis://redis:6379
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    env_file:
+      - ../.env
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - app-network
+    volumes:
+      - ../uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "node", "healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # MongoDB Database
+  mongodb:
+    image: mongo:7-jammy
+    container_name: kpt-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: kpt_website
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: kpt-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Elasticsearch
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: kpt-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.license.self_generated.type=trial
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: kpt-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../uploads:/var/www/uploads:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - app
+    networks:
+      - app-network
+
+volumes:
+  mongodb_data:
+  mongodb_config:
+  redis_data:
+  elasticsearch_data:
+  nginx_logs:
+
+networks:
+  app-network:
+    driver: bridge

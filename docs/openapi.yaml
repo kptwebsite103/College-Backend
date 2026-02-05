@@ -1,0 +1,1669 @@
+openapi: 3.0.3
+info:
+  title: KPT Website API
+  version: '1.0.0'
+  description: Complete API for KPT Website management system
+servers:
+  - url: http://localhost:5000
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    LocalizedString:
+      type: object
+      properties:
+        en:
+          type: string
+        kn:
+          type: string
+    Page:
+      type: object
+      properties:
+        _id:
+          type: string
+        title:
+          $ref: '#/components/schemas/LocalizedString'
+        slug:
+          type: string
+        content:
+          type: object
+        status:
+          type: string
+          enum: [draft, review, published, archived]
+        departmentId:
+          type: string
+        author:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        scheduledAt:
+          type: string
+          format: date-time
+        versions:
+          type: array
+          items:
+            type: object
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PageCreate:
+      type: object
+      required: [title, slug, content]
+      properties:
+        title:
+          $ref: '#/components/schemas/LocalizedString'
+        slug:
+          type: string
+        content:
+          type: object
+        departmentId:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+    PageUpdate:
+      type: object
+      properties:
+        title:
+          $ref: '#/components/schemas/LocalizedString'
+        slug:
+          type: string
+        content:
+          type: object
+        status:
+          type: string
+          enum: [draft, review, published, archived]
+        scheduledAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+    Media:
+      type: object
+      properties:
+        _id:
+          type: string
+        url:
+          type: string
+        public_id:
+          type: string
+        filename:
+          type: string
+        format:
+          type: string
+        size:
+          type: integer
+        type:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        uploadedBy:
+          type: string
+        departmentId:
+          type: string
+        usageRefs:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    MediaUpload:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+        tags:
+          type: array
+          items:
+            type: string
+        departmentId:
+          type: string
+    ScheduleRequest:
+      type: object
+      required: [scheduledAt]
+      properties:
+        scheduledAt:
+          type: string
+          format: date-time
+    RollbackRequest:
+      type: object
+      required: [versionIndex]
+      properties:
+        versionIndex:
+          type: integer
+          minimum: 0
+    Activity:
+      type: object
+      properties:
+        _id:
+          type: string
+        actorId:
+          type: string
+        actorEmail:
+          type: string
+        action:
+          type: string
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+        before:
+          type: object
+        after:
+          type: object
+        meta:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        departmentId:
+          type: string
+        isActive:
+          type: boolean
+        lastLogin:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UserCreate:
+      type: object
+      required: [email, password, firstName, lastName]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        departmentId:
+          type: string
+    UserUpdate:
+      type: object
+      properties:
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        departmentId:
+          type: string
+        isActive:
+          type: boolean
+    Notification:
+      type: object
+      properties:
+        _id:
+          type: string
+        userId:
+          type: string
+        title:
+          type: string
+        message:
+          type: string
+        type:
+          type: string
+          enum: [info, warning, error, success]
+        read:
+          type: boolean
+        data:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Analytics:
+      type: object
+      properties:
+        _id:
+          type: string
+        event:
+          type: string
+        data:
+          type: object
+        userId:
+          type: string
+        sessionId:
+          type: string
+        ip:
+          type: string
+        userAgent:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Webhook:
+      type: object
+      properties:
+        _id:
+          type: string
+        source:
+          type: string
+        event:
+          type: string
+        payload:
+          type: object
+        headers:
+          type: object
+        processed:
+          type: boolean
+        processedAt:
+          type: string
+          format: date-time
+        error:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    HomeSection:
+      type: object
+      properties:
+        _id:
+          type: string
+        type:
+          type: string
+          enum: [banner, slider, block]
+        title:
+          $ref: '#/components/schemas/LocalizedString'
+        active:
+          type: boolean
+        order:
+          type: integer
+        departmentId:
+          type: string
+        bannerImage:
+          type: string
+        bannerDescription:
+          $ref: '#/components/schemas/LocalizedString'
+        bannerLink:
+          type: string
+        slides:
+          type: array
+          items:
+            type: object
+            properties:
+              image:
+                type: string
+              title:
+                $ref: '#/components/schemas/LocalizedString'
+              description:
+                $ref: '#/components/schemas/LocalizedString'
+              link:
+                type: string
+              order:
+                type: integer
+        blockContent:
+          type: object
+          properties:
+            en:
+              type: object
+            kn:
+              type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Workflow:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        steps:
+          type: array
+          items:
+            type: object
+        active:
+          type: boolean
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    WorkflowInstance:
+      type: object
+      properties:
+        _id:
+          type: string
+        workflowId:
+          type: string
+        currentStep:
+          type: integer
+        status:
+          type: string
+          enum: [pending, in_progress, approved, rejected, completed]
+        data:
+          type: object
+        approvals:
+          type: array
+          items:
+            type: object
+            properties:
+              step:
+                type: integer
+              userId:
+                type: string
+              action:
+                type: string
+                enum: [approve, reject]
+              timestamp:
+                type: string
+                format: date-time
+              data:
+                type: object
+        history:
+          type: array
+          items:
+            type: object
+            properties:
+              action:
+                type: string
+              step:
+                type: integer
+              userId:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+              data:
+                type: object
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AuthLogin:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+    AuthRegister:
+      type: object
+      required: [email, password, firstName, lastName]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        departmentId:
+          type: string
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+        refreshToken:
+          type: string
+    MeResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+    Department:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          $ref: '#/components/schemas/LocalizedString'
+        slug:
+          type: string
+        description:
+          type: object
+        active:
+          type: boolean
+        order:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Menu:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          $ref: '#/components/schemas/LocalizedString'
+        slug:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                $ref: '#/components/schemas/LocalizedString'
+              url:
+                type: string
+              order:
+                type: integer
+              target:
+                type: string
+        active:
+          type: boolean
+        order:
+          type: integer
+        departmentId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+paths:
+  /api/pages:
+    get:
+      summary: List pages
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: departmentId
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A list of pages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Page'
+    post:
+      summary: Create a page
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PageCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+  /api/pages/{id}:
+    get:
+      summary: Get page by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+    put:
+      summary: Update page
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PageUpdate'
+      responses:
+        '200':
+          description: Updated page
+    delete:
+      summary: Delete page (superadmin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /api/departments:
+    get:
+      summary: List departments
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of departments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Department'
+    post:
+      summary: Create a department
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Department'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+  /api/departments/{id}:
+    get:
+      summary: Get department by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A department
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+    put:
+      summary: Update department
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Department'
+      responses:
+        '200':
+          description: Updated department
+    delete:
+      summary: Delete department (superadmin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /api/menus:
+    get:
+      summary: List menus
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of menus
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Menu'
+    post:
+      summary: Create a menu
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Menu'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Menu'
+  /api/menus/{id}:
+    get:
+      summary: Get menu by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A menu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Menu'
+    put:
+      summary: Update menu
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Menu'
+      responses:
+        '200':
+          description: Updated menu
+    delete:
+      summary: Delete menu (superadmin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /api/pages/{id}/publish:
+    post:
+      summary: Publish a page
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Published
+  /api/pages/{id}/unpublish:
+    post:
+      summary: Unpublish a page
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Unpublished
+  /api/pages/{id}/schedule:
+    post:
+      summary: Schedule a page to be published
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleRequest'
+      responses:
+        '200':
+          description: Scheduled
+  /api/pages/{id}/rollback:
+    post:
+      summary: Rollback to a page version
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RollbackRequest'
+      responses:
+        '200':
+          description: Rolled back
+  /api/media/upload:
+    post:
+      summary: Upload media file
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                tags:
+                  type: array
+                  items:
+                    type: string
+                departmentId:
+                  type: string
+      responses:
+        '201':
+          description: Media uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+  /api/media/sign:
+    post:
+      summary: Get Cloudinary upload signature (for client direct upload)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                folder:
+                  type: string
+                public_id:
+                  type: string
+                eager:
+                  type: string
+      responses:
+        '200':
+          description: Signature and timestamp
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  signature:
+                    type: string
+                  timestamp:
+                    type: integer
+                  apiKey:
+                    type: string
+                  cloudName:
+                    type: string
+  /api/activity:
+    get:
+      summary: List activity logs (admin-only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: resourceType
+          in: query
+          schema:
+            type: string
+        - name: resourceId
+          in: query
+          schema:
+            type: string
+        - name: actorId
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A list of activity logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Activity'
+  /api/me:
+    get:
+      summary: Get current user information
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+  /api/auth/register:
+    post:
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRegister'
+      responses:
+        '201':
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /api/auth/login:
+    post:
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLogin'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /api/auth/refresh:
+    post:
+      summary: Refresh access token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /api/auth/logout:
+    post:
+      summary: Logout user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out
+  /api/auth/forgot-password:
+    post:
+      summary: Request password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+      responses:
+        '200':
+          description: Reset email sent
+  /api/auth/reset-password:
+    post:
+      summary: Reset password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Password reset
+  /api/auth/webhook:
+    post:
+      summary: Clerk webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook processed
+  /api/auth/webhooks:
+    get:
+      summary: List webhooks
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of webhooks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Webhook'
+  /api/users:
+    get:
+      summary: List users (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A list of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+    post:
+      summary: Create user (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /api/users/{id}:
+    get:
+      summary: Get user by id (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    put:
+      summary: Update user (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    delete:
+      summary: Delete user (superadmin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: User deleted
+  /api/notifications:
+    get:
+      summary: List notifications
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A list of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+  /api/notifications/{id}:
+    get:
+      summary: Get notification by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+    put:
+      summary: Mark notification as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notification marked as read
+  /api/analytics:
+    post:
+      summary: Create analytics event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Analytics'
+      responses:
+        '201':
+          description: Event created
+    get:
+      summary: List analytics events (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A list of analytics events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Analytics'
+  /api/analytics/{id}:
+    get:
+      summary: Get analytics event by id (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: An analytics event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Analytics'
+  /api/analytics/reports/page-views:
+    get:
+      summary: Get page views report (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Page views report
+  /api/analytics/reports/user-activity:
+    get:
+      summary: Get user activity report (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User activity report
+  /api/analytics/reports/general:
+    get:
+      summary: Get general analytics report (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: General analytics report
+  /api/webhooks:
+    post:
+      summary: Receive webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook received
+    get:
+      summary: List webhooks (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: A list of webhooks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Webhook'
+  /api/webhooks/{id}:
+    get:
+      summary: Get webhook by id (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A webhook
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+  /api/home-sections:
+    get:
+      summary: List home sections
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A list of home sections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HomeSection'
+    post:
+      summary: Create home section (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HomeSection'
+      responses:
+        '201':
+          description: Home section created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeSection'
+  /api/home-sections/active:
+    get:
+      summary: List active home sections
+      responses:
+        '200':
+          description: A list of active home sections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HomeSection'
+  /api/home-sections/{id}:
+    get:
+      summary: Get home section by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A home section
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeSection'
+    put:
+      summary: Update home section (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HomeSection'
+      responses:
+        '200':
+          description: Home section updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeSection'
+    delete:
+      summary: Delete home section (superadmin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Home section deleted
+  /api/workflows:
+    get:
+      summary: List workflows (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A list of workflows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Workflow'
+    post:
+      summary: Create workflow (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Workflow'
+      responses:
+        '201':
+          description: Workflow created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+  /api/workflows/{id}:
+    get:
+      summary: Get workflow by id (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A workflow
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+    put:
+      summary: Update workflow (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Workflow'
+      responses:
+        '200':
+          description: Workflow updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+    delete:
+      summary: Delete workflow (superadmin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Workflow deleted
+    post:
+      summary: Execute workflow (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Workflow executed
+  /api/workflows/instances:
+    post:
+      summary: Create workflow instance
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                workflowId:
+                  type: string
+                data:
+                  type: object
+      responses:
+        '201':
+          description: Instance created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstance'
+    get:
+      summary: List workflow instances
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A list of workflow instances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkflowInstance'
+  /api/workflows/instances/{id}:
+    get:
+      summary: Get workflow instance by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A workflow instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstance'
+  /api/workflows/instances/{id}/approve:
+    post:
+      summary: Approve workflow instance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Instance approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstance'
+  /api/workflows/instances/{id}/reject:
+    post:
+      summary: Reject workflow instance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Instance rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstance'
+  /api/workflows/my-pending-approvals:
+    get:
+      summary: Get my pending approvals
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pending approvals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkflowInstance'
