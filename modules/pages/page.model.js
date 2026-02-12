@@ -29,7 +29,7 @@ const PageSchema = new Schema({
       javascript: { type: String, default: '' }
     }
   },
-  status: { type: String, enum: ['created', 'approved', 'review', 'published', 'archived'], default: 'created' },
+  status: { type: String, enum: ['created', 'pending', 'review', 'approved', 'published', 'archived', 'rejected', 'draft'], default: 'created' },
   departmentId: { type: String, index: true },
   author: { type: Schema.Types.ObjectId, ref: 'User' },
   publishedAt: Date,

@@ -95,12 +95,17 @@ async function deletePage(id) {
 
 // Placeholder functions for other operations
 async function publishPage(id, updatedBy) {
-  const doc = await updatePage(id, { status: 'approved', approvedAt: new Date(), updatedBy });
+  const doc = await updatePage(id, { status: 'approved', publishedAt: new Date(), updatedBy });
   return doc;
 }
 
 async function unpublishPage(id, updatedBy) {
   const doc = await updatePage(id, { status: 'draft', publishedAt: null, updatedBy });
+  return doc;
+}
+
+async function rejectPage(id, updatedBy) {
+  const doc = await updatePage(id, { status: 'rejected', updatedBy });
   return doc;
 }
 
@@ -123,5 +128,6 @@ module.exports = {
   publishPage, 
   unpublishPage, 
   schedulePage, 
-  rollbackPage 
+  rollbackPage,
+  rejectPage 
 };

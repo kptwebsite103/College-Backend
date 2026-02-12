@@ -1,11 +1,16 @@
 const { createMediaFromUpload } = require('./media.service');
-const { getAuthenticationParameters } = require('../../utils/imagekit');
-const { uploadSchema, signSchema } = require('./media.validation');
+const { getAuthenticationParameters, deleteFile } = require('../../utils/cloudinary');
+const { uploadSchema, updateSchema, signSchema } = require('./media.validation');
 const Media = require('./media.model');
 
 async function list(req, res) {
   try {
-    const media = await Media.find().sort({ createdAt: -1 });
+    const media = await Media.find({
+      $or: [
+        { status: 'cloud' },
+        { url: /res\.cloudinary\.com/i }
+      ]
+    }).sort({ createdAt: -1 });
     res.json(media);
   } catch (err) {
     console.error('Media list error:', err && err.message ? err.message : err);
@@ -23,8 +28,18 @@ async function upload(req, res) {
     const uploadedBy = req.user && req.user.id ? req.user.id : null;
     const departmentId = value.departmentId || null;
     const tags = value.tags || [];
+    const title = value.title || '';
+    const folder = value.folder || 'media';
 
-    const media = await createMediaFromUpload({ filePath: req.file.path, filename: req.file.originalname, uploadedBy, departmentId, tags });
+    const media = await createMediaFromUpload({
+      file: req.file,
+      filename: req.file.originalname,
+      title,
+      uploadedBy,
+      departmentId,
+      tags,
+      folder,
+    });
     res.status(201).json(media);
   } catch (err) {
     console.error('Media upload error:', err && err.message ? err.message : err);
@@ -32,26 +47,27 @@ async function upload(req, res) {
   }
 }
 
-// Returns ImageKit authentication parameters for client direct uploads
+// Returns Cloudinary signature for client direct uploads
 function sign(req, res) {
   const { error, value } = signSchema.validate(req.body);
   if (error) return res.status(400).json({ message: error.message });
 
   try {
-    // Get authentication parameters from ImageKit
-    const authResult = getAuthenticationParameters();
-    
+    const authResult = getAuthenticationParameters(value || {});
+
     if (!authResult.success) {
-      return res.status(500).json({ message: 'Could not generate authentication parameters' });
+      return res.status(500).json({ message: authResult.error || 'Could not generate authentication parameters' });
     }
 
-    // Return ImageKit authentication parameters
     res.json({
-      token: authResult.data.token,
-      expire: authResult.data.expire,
       signature: authResult.data.signature,
-      publicKey: process.env.IMAGEKIT_PUBLIC_KEY || null,
-      urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT || null
+      timestamp: authResult.data.timestamp,
+      apiKey: authResult.data.apiKey,
+      cloudName: authResult.data.cloudName,
+      folder: authResult.data.folder,
+      public_id: authResult.data.public_id,
+      resource_type: authResult.data.resource_type,
+      eager: authResult.data.eager,
     });
   } catch (err) {
     console.error('Sign error:', err && err.message ? err.message : err);
@@ -59,4 +75,39 @@ function sign(req, res) {
   }
 }
 
-module.exports = { list, upload, sign };
+async function update(req, res) {
+  const { error, value } = updateSchema.validate(req.body || {});
+  if (error) return res.status(400).json({ message: error.message });
+
+  try {
+    const updated = await Media.findByIdAndUpdate(req.params.id, value, { new: true });
+    if (!updated) return res.status(404).json({ message: 'Not found' });
+    res.json(updated);
+  } catch (err) {
+    console.error('Media update error:', err && err.message ? err.message : err);
+    res.status(500).json({ message: 'Failed to update media' });
+  }
+}
+
+async function remove(req, res) {
+  try {
+    const media = await Media.findById(req.params.id);
+    if (!media) return res.status(404).json({ message: 'Not found' });
+
+    if (media.public_id) {
+      try {
+        await deleteFile(media.public_id);
+      } catch (error) {
+        console.warn('Cloudinary delete failed:', error && error.message ? error.message : error);
+      }
+    }
+
+    await Media.deleteOne({ _id: media._id });
+    res.status(204).end();
+  } catch (err) {
+    console.error('Media delete error:', err && err.message ? err.message : err);
+    res.status(500).json({ message: 'Failed to delete media' });
+  }
+}
+
+module.exports = { list, upload, sign, update, remove };

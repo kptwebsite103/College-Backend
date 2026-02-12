@@ -4,10 +4,13 @@ const { Schema } = mongoose;
 const MediaSchema = new Schema({
   url: { type: String, required: true },
   public_id: { type: String },
+  title: { type: String, default: '' },
   filename: { type: String },
+  thumbnailUrl: { type: String },
   format: { type: String },
   size: { type: Number },
   type: { type: String }, // image, pdf, etc.
+  metadata: { type: Schema.Types.Mixed },
   tags: [String],
   uploadedBy: { type: String }, // user id
   departmentId: { type: String },

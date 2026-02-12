@@ -13,7 +13,7 @@ module.exports = async function authMiddleware(req, res, next) {
   // Development bypass for testing
   if (process.env.NODE_ENV === 'development' && token === 'dev-mock-jwt-token-for-development') {
     req.user = {
-      id: 'dev-admin-1',
+      id: '000000000000000000000001',
       username: 'dev-admin',
       firstName: 'Development',
       lastName: 'Admin',

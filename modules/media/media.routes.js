@@ -14,4 +14,10 @@ router.post('/sign', auth, requireRole('admin', 'editor'), controller.sign);
 // Upload route (authenticated users with proper role)
 router.post('/upload', auth, requireRole('admin', 'editor'), upload.single('file'), controller.upload);
 
+// Update metadata (title, tags, department)
+router.put('/:id', auth, requireRole('admin', 'editor'), controller.update);
+
+// Delete media
+router.delete('/:id', auth, requireRole('admin', 'editor'), controller.remove);
+
 module.exports = router;

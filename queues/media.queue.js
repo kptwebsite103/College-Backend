@@ -9,7 +9,7 @@ mediaQueue.process(async (job) => {
 
   // Import here to avoid circular dependencies
   const Media = require('../modules/media/media.model');
-  const { uploadFile } = require('../utils/imagekit');
+  const { uploadFile } = require('../utils/cloudinary');
 
   const media = await Media.findById(mediaId);
   if (!media) {
@@ -17,8 +17,9 @@ mediaQueue.process(async (job) => {
   }
 
   switch (action) {
-    case 'upload-to-imagekit':
-      // Upload local file to ImageKit
+    case 'upload-to-cloudinary':
+    case 'upload-to-imagekit': // Backward compatibility: route to Cloudinary
+      // Upload local file to Cloudinary
       const fs = require('fs');
       const path = require('path');
       
@@ -45,19 +46,19 @@ mediaQueue.process(async (job) => {
         mimetype: mimetype
       };
       
-      // Upload to ImageKit with proper mimetype
-      const uploadResult = await uploadFile(file, fileName, 'media-uploads', { mimetype });
+      // Upload to Cloudinary with proper mimetype
+      const uploadResult = await uploadFile(file, fileName, 'media-uploads', { resource_type: 'auto' });
       
       if (!uploadResult.success) {
-        throw new Error(`ImageKit upload failed: ${uploadResult.error}`);
+        throw new Error(`Cloudinary upload failed: ${uploadResult.error}`);
       }
 
-      // Update media record with ImageKit details
+      // Update media record with Cloudinary details
       await Media.findByIdAndUpdate(mediaId, {
         url: uploadResult.data.url,
-        fileId: uploadResult.data.fileId,
-        thumbnailUrl: uploadResult.data.thumbnailUrl,
-        fileType: uploadResult.data.fileType,
+        public_id: uploadResult.data.publicId || uploadResult.data.fileId,
+        format: uploadResult.data.format,
+        size: uploadResult.data.bytes,
         status: 'cloud',
       });
 
@@ -74,22 +75,28 @@ mediaQueue.process(async (job) => {
       break;
 
     case 'generate-thumbnail':
-      // For ImageKit, thumbnail URL is already provided
-      // If it's an image and no thumbnail exists, we can use ImageKit transformations
-      if (media.fileType === 'image' && !media.thumbnailUrl) {
-        const thumbnailUrl = `${media.url}?tr=w-300,h-300,c-at_max,q-80`;
+      // If it's an image, derive a Cloudinary thumbnail URL
+      if (media.type === 'image' && media.public_id) {
+        const { cloudinary } = require('../config/cloudinary');
+        const thumbnailUrl = cloudinary.url(media.public_id, {
+          width: 300,
+          height: 300,
+          crop: 'fit',
+          quality: 'auto',
+          fetch_format: 'auto',
+        });
         await Media.findByIdAndUpdate(mediaId, { thumbnailUrl });
       }
       break;
 
     case 'extract-metadata':
-      // Extract metadata (ImageKit provides basic metadata)
+      // Extract metadata (Cloudinary provides basic metadata)
       const metadata = {
         width: media.width || 0,
         height: media.height || 0,
         duration: media.duration || 0,
         size: media.size || 0,
-        fileType: media.fileType || media.type,
+        fileType: media.type,
       };
       await Media.findByIdAndUpdate(mediaId, { metadata });
       break;

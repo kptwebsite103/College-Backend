@@ -1,58 +1,65 @@
 const Media = require('./media.model');
-const { uploadFile } = require('../../utils/imagekit');
-const fs = require('fs');
-const path = require('path');
+const { uploadFile } = require('../../utils/cloudinary');
 
-async function uploadFileToImageKit(filePath, options = {}) {
-  // Read file from disk
-  const fileBuffer = fs.readFileSync(filePath);
-  const fileName = path.basename(filePath);
-  
-  // Create file object for ImageKit with proper mimetype detection
-  const file = {
-    buffer: fileBuffer,
-    originalname: fileName,
-    mimetype: options.mimetype || 'application/octet-stream'
-  };
-  
-  // Upload to ImageKit
-  const result = await uploadFile(file, fileName, options.folder || 'media-uploads');
-  return result;
+function detectType(filename, mimetype) {
+  if (mimetype) {
+    if (mimetype.startsWith('image/')) return 'image';
+    if (mimetype.startsWith('video/')) return 'video';
+    if (mimetype.startsWith('audio/')) return 'audio';
+    if (mimetype === 'application/pdf') return 'pdf';
+    if (
+      [
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'text/plain',
+        'text/csv',
+      ].includes(mimetype)
+    ) {
+      return 'document';
+    }
+  }
+
+  const ext = filename.split('.').pop().toLowerCase();
+  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) return 'image';
+  if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) return 'video';
+  if (['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg'].includes(ext)) return 'audio';
+  if (ext === 'pdf') return 'pdf';
+  if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv'].includes(ext)) return 'document';
+  return 'file';
 }
 
-async function createMediaFromUpload({ filePath, filename, uploadedBy, departmentId, tags = [] }) {
-  // Get file stats
-  const stats = fs.statSync(filePath);
-  const size = stats.size;
+async function createMediaFromUpload({ file, filename, title, uploadedBy, departmentId, tags = [], folder }) {
+  if (!file || !file.buffer) {
+    throw new Error('No file data received');
+  }
 
-  // Determine file type (simple check)
-  const ext = filename.split('.').pop().toLowerCase();
-  let type = 'file';
-  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) type = 'image';
-  else if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) type = 'video';
-  else if (['mp3', 'wav', 'flac'].includes(ext)) type = 'audio';
-  else if (ext === 'pdf') type = 'pdf';
-  else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv'].includes(ext)) type = 'document';
+  const uploadResult = await uploadFile(file, filename, folder || 'media');
+  if (!uploadResult.success) {
+    throw new Error(uploadResult.error || 'Cloudinary upload failed');
+  }
+
+  const type = detectType(filename, file.mimetype);
 
   const doc = new Media({
-    url: `/uploads/${path.basename(filePath)}`, // local url initially
+    url: uploadResult.data.url,
+    public_id: uploadResult.data.publicId || uploadResult.data.fileId,
+    title: title || '',
     filename: filename,
-    size: size,
+    thumbnailUrl: uploadResult.data.thumbnailUrl || null,
+    format: uploadResult.data.format,
+    size: uploadResult.data.bytes,
     type: type,
     tags,
     uploadedBy,
     departmentId,
-    localPath: filePath,
-    status: 'local',
+    status: 'cloud',
   });
 
-  const savedMedia = await doc.save();
-
-  // Enqueue background job to upload to ImageKit
-  const mediaQueue = require('../../queues/media.queue');
-  await mediaQueue.add({ mediaId: savedMedia._id, action: 'upload-to-imagekit' });
-
-  return savedMedia;
+  return await doc.save();
 }
 
-module.exports = { uploadFileToImageKit, createMediaFromUpload };
+module.exports = { createMediaFromUpload };

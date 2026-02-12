@@ -2,6 +2,7 @@ const Joi = require('joi');
 
 // Validation for media upload
 const uploadSchema = Joi.object({
+  title: Joi.string().allow('', null).optional(),
   folder: Joi.string().optional(),
   departmentId: Joi.string().optional(),
   tags: Joi.string().optional().custom((value, helpers) => {
@@ -23,6 +24,12 @@ const uploadSchema = Joi.object({
   }),
 });
 
+const updateSchema = Joi.object({
+  title: Joi.string().allow('', null).optional(),
+  departmentId: Joi.string().optional(),
+  tags: Joi.array().items(Joi.string()).optional(),
+});
+
 // Validation for sign request (client direct upload)
 const signSchema = Joi.object({
   folder: Joi.string().optional(),
@@ -30,4 +37,4 @@ const signSchema = Joi.object({
   eager: Joi.string().optional(), // Could be array or string, but keeping simple
 });
 
-module.exports = { uploadSchema, signSchema };
+module.exports = { uploadSchema, updateSchema, signSchema };

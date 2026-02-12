@@ -1,20 +1,22 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const { uploadFile, deleteFile, listFiles, getAuthenticationParameters } = require('../utils/imagekit');
+const { uploadFile, deleteFile, listFiles, getAuthenticationParameters } = require('../utils/cloudinary');
 
 const router = express.Router();
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
 
-// File filter to allow images, videos, and documents
+// File filter to allow images, videos, audio, and documents
 const fileFilter = (req, file, cb) => {
   const allowedTypes = [
     // Images
     'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
     // Videos
     'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 'video/webm',
+    // Audio
+    'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/flac', 'audio/x-m4a', 'audio/aac', 'audio/ogg',
     // Documents
     'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -22,10 +24,15 @@ const fileFilter = (req, file, cb) => {
     'text/plain', 'text/csv'
   ];
   
-  if (allowedTypes.includes(file.mimetype)) {
+  if (
+    allowedTypes.includes(file.mimetype) ||
+    file.mimetype.startsWith('image/') ||
+    file.mimetype.startsWith('video/') ||
+    file.mimetype.startsWith('audio/')
+  ) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only images, videos, and documents are allowed.'), false);
+    cb(new Error('Invalid file type. Only images, videos, audio, and documents are allowed.'), false);
   }
 };
 
@@ -76,9 +83,7 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
     }
 
     const folder = req.body.folder || 'college-files';
-    const uploadPromises = req.files.map(file => 
-      uploadFile(file, file.originalname, folder)
-    );
+    const uploadPromises = req.files.map(file => uploadFile(file, file.originalname, folder));
 
     const results = await Promise.all(uploadPromises);
     
@@ -107,7 +112,8 @@ router.post('/multiple', upload.array('files', 10), async (req, res) => {
 router.delete('/:fileId', async (req, res) => {
   try {
     const { fileId } = req.params;
-    const result = await deleteFile(fileId);
+    const { resource_type } = req.query;
+    const result = await deleteFile(fileId, { resource_type });
 
     if (result.success) {
       res.status(200).json(result);
@@ -127,8 +133,9 @@ router.delete('/:fileId', async (req, res) => {
 // List files
 router.get('/list', async (req, res) => {
   try {
-    const { folder = 'college-files', skip = 0, limit = 100 } = req.query;
-    const result = await listFiles(folder, parseInt(skip), parseInt(limit));
+    const { folder = 'college-files', cursor = null, skip = null, limit = 100 } = req.query;
+    const effectiveCursor = cursor || skip || null;
+    const result = await listFiles(folder, effectiveCursor, parseInt(limit));
 
     if (result.success) {
       res.status(200).json(result);
@@ -148,7 +155,7 @@ router.get('/list', async (req, res) => {
 // Get authentication parameters for client-side upload
 router.get('/auth-params', async (req, res) => {
   try {
-    const result = await getAuthenticationParameters();
+    const result = await getAuthenticationParameters({ folder: req.query.folder });
 
     if (result.success) {
       res.status(200).json(result);
