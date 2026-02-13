@@ -1,4 +1,17 @@
-const { createPage, getPageById, getPageBySlug, listPages, updatePage, deletePage, publishPage, unpublishPage, schedulePage, rollbackPage, rejectPage } = require('./page.service.simple');
+const {
+  createPage,
+  getPageById,
+  getPageBySlug,
+  listPages,
+  listPublicAnnouncements,
+  updatePage,
+  deletePage,
+  publishPage,
+  unpublishPage,
+  schedulePage,
+  rollbackPage,
+  rejectPage
+} = require('./page.service.simple');
 
 function getRoles(req) {
   const rawRoles = (req.user && req.user.roles) || [];
@@ -118,6 +131,19 @@ async function remove(req, res) {
   }
 }
 
+async function listAnnouncements(req, res) {
+  try {
+    const announcements = await listPublicAnnouncements({
+      limit: parseInt(req.query.limit, 10) || 6,
+      skip: parseInt(req.query.skip, 10) || 0
+    });
+    res.json(announcements);
+  } catch (err) {
+    console.error('List public announcements error:', err);
+    res.status(500).json({ message: 'Failed to list announcements' });
+  }
+}
+
 async function publish(req, res) {
   try {
     if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
@@ -186,4 +212,17 @@ async function rollback(req, res) {
   }
 }
 
-module.exports = { create, list, get, getBySlug, update, publish, reject, unpublish, schedule, rollback, remove };
+module.exports = {
+  create,
+  list,
+  get,
+  getBySlug,
+  listAnnouncements,
+  update,
+  publish,
+  reject,
+  unpublish,
+  schedule,
+  rollback,
+  remove
+};

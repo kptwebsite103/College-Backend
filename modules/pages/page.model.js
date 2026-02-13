@@ -6,6 +6,14 @@ const LocalizedString = new Schema({
   kn: { type: String, default: '' },
 }, { _id: false });
 
+const AnnouncementSchema = new Schema({
+  text: LocalizedString,
+  startDate: { type: Date },
+  endDate: { type: Date },
+  attachmentUrl: { type: String, default: '' },
+  attachmentLabel: { type: String, default: '' }
+}, { _id: false });
+
 const VersionSchema = new Schema({
   title: LocalizedString,
   content: { type: Schema.Types.Mixed },
@@ -36,6 +44,7 @@ const PageSchema = new Schema({
   scheduledAt: Date,
   versions: [VersionSchema],
   tags: [String],
+  announcement: AnnouncementSchema,
 }, { timestamps: true });
 
 module.exports = mongoose.model('Page', PageSchema);

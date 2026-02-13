@@ -43,6 +43,46 @@ async function listPages(filter = {}, options = {}) {
   }
 }
 
+async function listPublicAnnouncements(options = {}) {
+  try {
+    const limit = Number.isFinite(Number(options.limit)) ? Number(options.limit) : 6;
+    const skip = Number.isFinite(Number(options.skip)) ? Number(options.skip) : 0;
+    const now = new Date();
+
+    const query = Page.find({
+      status: { $in: ['approved', 'published'] },
+      $or: [
+        { tags: { $elemMatch: { $regex: /^announcement$/i } } },
+        { slug: { $regex: /announcement/i } }
+      ],
+      $and: [
+        {
+          $or: [
+            { 'announcement.startDate': { $exists: false } },
+            { 'announcement.startDate': null },
+            { 'announcement.startDate': { $lte: now } }
+          ]
+        },
+        {
+          $or: [
+            { 'announcement.endDate': { $exists: false } },
+            { 'announcement.endDate': null },
+            { 'announcement.endDate': { $gte: now } }
+          ]
+        }
+      ]
+    })
+      .sort({ 'announcement.startDate': -1, publishedAt: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return query.lean();
+  } catch (error) {
+    console.error('Error listing public announcements:', error);
+    throw error;
+  }
+}
+
 async function getPageById(id) {
   try {
     return Page.findById(id).lean();
@@ -121,6 +161,7 @@ async function rollbackPage(id, versionIndex, updatedBy) {
 module.exports = { 
   createPage, 
   listPages, 
+  listPublicAnnouncements,
   getPageById, 
   getPageBySlug, 
   updatePage, 

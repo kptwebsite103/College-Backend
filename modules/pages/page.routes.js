@@ -4,6 +4,7 @@ const auth = require('../../middlewares/auth.middleware');
 const controller = require('./page.controller.simple');
 
 // Real database routes with simplified controller
+router.get('/public/announcements', controller.listAnnouncements);
 router.get('/', auth, controller.list);
 router.get('/slug/:slug', controller.getBySlug);
 router.get('/:id', auth, controller.get);

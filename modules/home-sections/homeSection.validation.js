@@ -5,11 +5,16 @@ const LocalizedString = Joi.object({
   kn: Joi.string().allow('', null)
 });
 
+const LinkSchema = Joi.alternatives().try(
+  Joi.string().uri(),
+  Joi.string().pattern(/^\/[^\s]*$/)
+).allow('', null);
+
 const SlideSchema = Joi.object({
-  image: Joi.string().optional(),
+  image: Joi.string().allow('', null).optional(),
   title: LocalizedString.optional(),
   description: LocalizedString.optional(),
-  link: Joi.string().uri().optional(),
+  link: LinkSchema.optional(),
   order: Joi.number().optional(),
 });
 
@@ -31,7 +36,7 @@ const createSchema = Joi.object({
     then: Joi.optional(),
     otherwise: Joi.forbidden()
   }),
-  bannerLink: Joi.string().uri().when('type', {
+  bannerLink: LinkSchema.when('type', {
     is: 'banner',
     then: Joi.optional(),
     otherwise: Joi.forbidden()
@@ -65,7 +70,7 @@ const updateSchema = Joi.object({
   // Banner fields
   bannerImage: Joi.string().optional(),
   bannerDescription: LocalizedString.optional(),
-  bannerLink: Joi.string().uri().optional(),
+  bannerLink: LinkSchema.optional(),
 
   // Slider fields
   slides: Joi.array().items(SlideSchema).optional(),
