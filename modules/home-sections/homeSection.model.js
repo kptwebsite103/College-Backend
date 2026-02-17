@@ -15,11 +15,17 @@ const SlideSchema = new Schema({
 }, { _id: false });
 
 const HomeSectionSchema = new Schema({
-  type: { type: String, enum: ['banner', 'slider', 'block'], required: true },
+  type: { type: String, enum: ['banner', 'slider', 'block', 'hero_text'], required: true },
   title: LocalizedString,
   active: { type: Boolean, default: true },
   order: { type: Number, default: 0 },
   departmentId: { type: String, index: true },
+
+  // Hero text specific
+  heroHeading: LocalizedString,
+  heroDescription: LocalizedString,
+  heroHeadingSize: { type: Number, default: 42 },
+  heroTextAlign: { type: String, enum: ['left', 'center', 'right'], default: 'center' },
 
   // Banner specific
   bannerImage: { type: String }, // For banner type

@@ -19,11 +19,33 @@ const SlideSchema = Joi.object({
 });
 
 const createSchema = Joi.object({
-  type: Joi.string().valid('banner', 'slider', 'block').required(),
+  type: Joi.string().valid('banner', 'slider', 'block', 'hero_text').required(),
   title: LocalizedString.optional(),
   active: Joi.boolean().optional(),
   order: Joi.number().optional(),
   departmentId: Joi.string().optional(),
+
+  // Hero text fields
+  heroHeading: LocalizedString.when('type', {
+    is: 'hero_text',
+    then: Joi.optional(),
+    otherwise: Joi.forbidden()
+  }),
+  heroDescription: LocalizedString.when('type', {
+    is: 'hero_text',
+    then: Joi.optional(),
+    otherwise: Joi.forbidden()
+  }),
+  heroHeadingSize: Joi.number().min(18).max(120).when('type', {
+    is: 'hero_text',
+    then: Joi.optional(),
+    otherwise: Joi.forbidden()
+  }),
+  heroTextAlign: Joi.string().valid('left', 'center', 'right').when('type', {
+    is: 'hero_text',
+    then: Joi.optional(),
+    otherwise: Joi.forbidden()
+  }),
 
   // Banner fields
   bannerImage: Joi.string().when('type', {
@@ -61,11 +83,17 @@ const createSchema = Joi.object({
 });
 
 const updateSchema = Joi.object({
-  type: Joi.string().valid('banner', 'slider', 'block').optional(),
+  type: Joi.string().valid('banner', 'slider', 'block', 'hero_text').optional(),
   title: LocalizedString.optional(),
   active: Joi.boolean().optional(),
   order: Joi.number().optional(),
   departmentId: Joi.string().optional(),
+
+  // Hero text fields
+  heroHeading: LocalizedString.optional(),
+  heroDescription: LocalizedString.optional(),
+  heroHeadingSize: Joi.number().min(18).max(120).optional(),
+  heroTextAlign: Joi.string().valid('left', 'center', 'right').optional(),
 
   // Banner fields
   bannerImage: Joi.string().optional(),
