@@ -47,7 +47,9 @@ const fileFilter = (req, file, cb) => {
   ) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only images, videos, audio, and documents are allowed.'), false);
+    const error = new Error('Invalid file type. Only images, videos, audio, and documents are allowed.');
+    error.status = 400;
+    cb(error, false);
   }
 };
 

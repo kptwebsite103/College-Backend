@@ -42,8 +42,15 @@ async function upload(req, res) {
     });
     res.status(201).json(media);
   } catch (err) {
-    console.error('Media upload error:', err && err.message ? err.message : err);
-    res.status(500).json({ message: 'Upload failed' });
+    const message = err && err.message ? err.message : 'Upload failed';
+    const status =
+      err && err.status
+        ? err.status
+        : /not configured|invalid file|file type|file size/i.test(message)
+          ? 400
+          : 500;
+    console.error('Media upload error:', message);
+    res.status(status).json({ message });
   }
 }
 
