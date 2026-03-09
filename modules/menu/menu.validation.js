@@ -6,6 +6,7 @@ const menuItem = Joi.object({
   title: LocalizedString.required(),
   url: Joi.string().optional(),
   redirect_url: Joi.string().optional(),
+  icon: Joi.string().optional(),
   order: Joi.number().optional(),
   target: Joi.string().valid('_self', '_blank').optional(),
   status: Joi.string().valid('Created', 'Approved', 'Rejected').optional(),

@@ -1,43 +1,62 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
-const LocalizedString = new Schema({
-  en: { type: String, default: '' },
-  kn: { type: String, default: '' },
-}, { _id: false });
+const LocalizedString = new Schema(
+  {
+    en: { type: String, default: "" },
+    kn: { type: String, default: "" },
+  },
+  { _id: false },
+);
 
-const SlideSchema = new Schema({
-  image: { type: String }, // URL or media ID
-  title: LocalizedString,
-  description: LocalizedString,
-  link: { type: String },
-  order: { type: Number, default: 0 },
-}, { _id: false });
+const SlideSchema = new Schema(
+  {
+    image: { type: String }, // URL or media ID
+    title: LocalizedString,
+    description: LocalizedString,
+    link: { type: String },
+    order: { type: Number, default: 0 },
+  },
+  { _id: false },
+);
 
-const HomeSectionSchema = new Schema({
-  type: { type: String, enum: ['banner', 'slider', 'block', 'hero_text'], required: true },
-  title: LocalizedString,
-  active: { type: Boolean, default: true },
-  order: { type: Number, default: 0 },
-  departmentId: { type: String, index: true },
+const HomeSectionSchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: ["banner", "slider", "block", "hero_text", "page_content"],
+      required: true,
+    },
+    title: LocalizedString,
+    active: { type: Boolean, default: true },
+    order: { type: Number, default: 0 },
+    departmentId: { type: String, index: true },
 
-  // Hero text specific
-  heroHeading: LocalizedString,
-  heroDescription: LocalizedString,
-  heroHeadingSize: { type: Number, default: 42 },
-  heroTextAlign: { type: String, enum: ['left', 'center', 'right'], default: 'center' },
+    // Hero text specific
+    heroHeading: LocalizedString,
+    heroDescription: LocalizedString,
+    heroHeadingSize: { type: Number, default: 42 },
+    heroTextAlign: {
+      type: String,
+      enum: ["left", "center", "right"],
+      default: "center",
+    },
 
-  // Banner specific
-  bannerImage: { type: String }, // For banner type
-  bannerDescription: LocalizedString,
-  bannerLink: { type: String },
+    // Banner specific
+    bannerImage: { type: String }, // For banner type
+    bannerDescription: LocalizedString,
+    bannerLink: { type: String },
 
-  // Slider specific
-  slides: [SlideSchema], // For slider type
+    // Slider specific
+    slides: [SlideSchema], // For slider type
 
-  // Block specific
-  blockContent: { en: Schema.Types.Mixed, kn: Schema.Types.Mixed }, // Flexible content for blocks
+    // Block specific
+    blockContent: { en: Schema.Types.Mixed, kn: Schema.Types.Mixed }, // Flexible content for blocks
 
-}, { timestamps: true });
+    // Page Content specific
+    pageSlug: { type: String }, // For page_content type
+  },
+  { timestamps: true },
+);
 
-module.exports = mongoose.model('HomeSection', HomeSectionSchema);
+module.exports = mongoose.model("HomeSection", HomeSectionSchema);

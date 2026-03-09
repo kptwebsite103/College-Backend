@@ -10,6 +10,7 @@ const MenuItemSchema = new Schema({
   title: { type: Object, required: true },
   url: { type: String },
   redirect_url: { type: String },
+  icon: { type: String, trim: true },
   order: { type: Number, default: 0 },
   target: { type: String, enum: ['_self', '_blank'], default: '_self' },
   status: { type: String, enum: ['Created', 'Approved', 'Rejected'], default: 'Created' },
