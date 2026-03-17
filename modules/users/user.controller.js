@@ -14,6 +14,12 @@ async function create(req, res) {
     return res.status(400).json({ message: error.message });
   }
 
+  // Restrict admin from creating super-admin
+  const currentUserRoles = req.user && req.user.roles ? req.user.roles : [];
+  if (value.roles && value.roles.includes('super-admin') && !currentUserRoles.includes('super-admin')) {
+    return res.status(403).json({ message: 'Only a super-admin can assign the super-admin role' });
+  }
+
   try {
     const doc = await createUser(value);
     console.log('User created successfully:', { id: doc._id, username: doc.username, roles: doc.roles });
@@ -56,6 +62,22 @@ async function update(req, res) {
   const { error, value } = updateSchema.validate(req.body);
   if (error) return res.status(400).json({ message: error.message });
   try {
+    const existingUser = await getUser(req.params.id);
+    if (!existingUser) return res.status(404).json({ message: 'User not found' });
+    
+    const currentUserRoles = req.user && req.user.roles ? req.user.roles : [];
+    const isSuperAdmin = currentUserRoles.includes('super-admin');
+    
+    // Prevent non-super-admin from updating a super-admin user
+    if (existingUser.roles && existingUser.roles.includes('super-admin') && !isSuperAdmin) {
+      return res.status(403).json({ message: 'You do not have permission to modify a super-admin user' });
+    }
+    
+    // Prevent non-super-admin from assigning super-admin role
+    if (value.roles && value.roles.includes('super-admin') && !isSuperAdmin) {
+      return res.status(403).json({ message: 'Only a super-admin can assign the super-admin role' });
+    }
+
     const doc = await updateUser(req.params.id, value);
     if (!doc) return res.status(404).json({ message: 'User not found' });
     res.json(doc);
@@ -69,6 +91,15 @@ async function update(req, res) {
 
 async function remove(req, res) {
   try {
+    const existingUser = await getUser(req.params.id);
+    if (!existingUser) return res.status(404).json({ message: 'User not found' });
+    
+    const currentUserRoles = req.user && req.user.roles ? req.user.roles : [];
+    // Prevent non-super-admin from deleting a super-admin user
+    if (existingUser.roles && existingUser.roles.includes('super-admin') && !currentUserRoles.includes('super-admin')) {
+      return res.status(403).json({ message: 'You do not have permission to delete a super-admin user' });
+    }
+
     const doc = await deleteUser(req.params.id);
     if (!doc) return res.status(404).json({ message: 'User not found' });
     res.status(204).end();
