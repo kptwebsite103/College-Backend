@@ -10,7 +10,7 @@ Available modules:
 - `awsS3.js` — AWS S3 client factory
 - `clerk.js` — Clerk HTTP client (thin wrapper)
 - `cloudinary.js` — Cloudinary config and client
-- `database.js` — Mongoose connection helpers
+- `database.js` — MySQL connection pool helpers
 - `elasticsearch.js` — Elasticsearch client factory
 - `redis.js` — Redis client factory
 - `bull.js` — Bull queue factory

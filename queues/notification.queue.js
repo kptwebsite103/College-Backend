@@ -7,14 +7,14 @@ notificationQueue.process(async (job) => {
 
   console.log(`Processing notification job: ${type} for notification ${notificationId}`);
 
-  const Notification = require('../modules/notifications/notification.model');
-  const notification = await Notification.findById(notificationId);
+  const { getNotificationById, updateNotification } = require('../modules/notifications/notification.service');
+  const notification = await getNotificationById(notificationId);
   if (!notification) {
     throw new Error(`Notification not found: ${notificationId}`);
   }
 
   try {
-    await Notification.findByIdAndUpdate(notificationId, { status: 'sending' });
+    await updateNotification(notificationId, { status: 'sending' });
 
     switch (type) {
       case 'email':
@@ -42,10 +42,10 @@ notificationQueue.process(async (job) => {
         throw new Error(`Unknown notification type: ${type}`);
     }
 
-    await Notification.findByIdAndUpdate(notificationId, { status: 'sent' });
+    await updateNotification(notificationId, { status: 'sent' });
     console.log(`Notification processing completed for ${notificationId}`);
   } catch (error) {
-    await Notification.findByIdAndUpdate(notificationId, { status: 'failed', error: error.message });
+    await updateNotification(notificationId, { status: 'failed', error: error.message });
     throw error;
   }
 });

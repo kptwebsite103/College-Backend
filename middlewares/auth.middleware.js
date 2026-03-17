@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../modules/users/user.model');
+const { getUser } = require('../modules/users/user.service');
 
 module.exports = async function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization || req.headers.Authorization;
@@ -32,12 +32,13 @@ module.exports = async function authMiddleware(req, res, next) {
       return res.status(401).json({ message: 'Invalid token' });
     }
 
-    const dbUser = await User.findById(decodedLocal.userId);
+    const dbUser = await getUser(decodedLocal.userId);
     if (!dbUser) return res.status(401).json({ message: 'Invalid or expired token' });
 
     req.user = {
-      id: String(dbUser._id),
+      id: String(dbUser._id || dbUser.id),
       username: dbUser.username,
+      email: dbUser.email,
       firstName: dbUser.firstName,
       lastName: dbUser.lastName,
       roles: dbUser.roles || decodedLocal.roles || [],

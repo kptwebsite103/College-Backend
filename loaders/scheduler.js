@@ -1,6 +1,5 @@
 const cron = require('node-cron');
-const Page = require('../modules/pages/page.model');
-const { publishPage } = require('../modules/pages/page.service');
+const { listScheduledPagesToPublish, publishPage } = require('../modules/pages/page.service.simple');
 
 // Starts background scheduled tasks and returns a handle with a `stop()` method.
 module.exports = function startScheduler() {
@@ -11,7 +10,7 @@ module.exports = function startScheduler() {
     try {
       const now = new Date();
       // Find pages scheduled for publish
-      const toPublish = await Page.find({ scheduledAt: { $lte: now }, status: { $ne: 'published' } }).limit(100).lean();
+      const toPublish = await listScheduledPagesToPublish(now, 100);
       if (toPublish && toPublish.length) {
         console.log(`Scheduler: publishing ${toPublish.length} pages`);
         for (const p of toPublish) {

@@ -1,7 +1,7 @@
-const Page = require('./page.model');
+const { getPageById } = require('./page.service.simple');
 
 async function getPageVersions(pageId) {
-  const page = await Page.findById(pageId).select('versions').lean();
+  const page = await getPageById(pageId);
   if (!page) throw new Error('Page not found');
   return page.versions || [];
 }
@@ -13,7 +13,7 @@ async function getVersionByIndex(pageId, index) {
 }
 
 async function getVersionHistory(pageId) {
-  const page = await Page.findById(pageId).select('versions createdAt updatedAt').lean();
+  const page = await getPageById(pageId);
   if (!page) throw new Error('Page not found');
   return {
     current: { createdAt: page.createdAt, updatedAt: page.updatedAt },

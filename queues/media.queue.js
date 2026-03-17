@@ -8,10 +8,10 @@ mediaQueue.process(async (job) => {
   console.log(`Processing media job: ${action} for media ${mediaId}`);
 
   // Import here to avoid circular dependencies
-  const Media = require('../modules/media/media.model');
+  const { getMediaById, updateMediaById } = require('../modules/media/media.service');
   const { uploadFile } = require('../utils/cloudinary');
 
-  const media = await Media.findById(mediaId);
+  const media = await getMediaById(mediaId);
   if (!media) {
     throw new Error(`Media not found: ${mediaId}`);
   }
@@ -54,7 +54,7 @@ mediaQueue.process(async (job) => {
       }
 
       // Update media record with Cloudinary details
-      await Media.findByIdAndUpdate(mediaId, {
+      await updateMediaById(mediaId, {
         url: uploadResult.data.url,
         public_id: uploadResult.data.publicId || uploadResult.data.fileId,
         format: uploadResult.data.format,
@@ -85,7 +85,7 @@ mediaQueue.process(async (job) => {
           quality: 'auto',
           fetch_format: 'auto',
         });
-        await Media.findByIdAndUpdate(mediaId, { thumbnailUrl });
+        await updateMediaById(mediaId, { thumbnailUrl });
       }
       break;
 
@@ -98,7 +98,7 @@ mediaQueue.process(async (job) => {
         size: media.size || 0,
         fileType: media.type,
       };
-      await Media.findByIdAndUpdate(mediaId, { metadata });
+      await updateMediaById(mediaId, { metadata });
       break;
 
     default:

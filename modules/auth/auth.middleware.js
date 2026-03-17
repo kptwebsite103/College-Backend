@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../users/user.model');
+const { getUser } = require('../users/user.service');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
 
@@ -18,14 +18,15 @@ module.exports = async function authMiddleware(req, res, next) {
       return res.status(401).json({ message: 'Invalid token' });
     }
 
-    const user = await User.findById(decoded.userId);
+    const user = await getUser(decoded.userId);
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
     }
 
     req.user = {
-      id: user._id,
+      id: user._id || user.id,
       username: user.username,
+      email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
       roles: user.roles || [],

@@ -1,94 +1,159 @@
-const mongoose = require('mongoose');
+const fs = require('fs');
+const path = require('path');
+const mysql = require('mysql2/promise');
 const logger = require('./logger');
 
-// Centralized MongoDB connection helpers. This module exposes:
-// - connect(uri, opts): connect once
-// - connectWithRetry(options): connect with retry/backoff reading env defaults
-// - disconnect(): disconnect cleanly
+let pool;
+let schemaEnsured = false;
 
-async function connect(uri, opts = {}) {
-  // Mongoose v7 removed `useNewUrlParser` and `useUnifiedTopology` options.
-  // Do not pass unsupported legacy options to the driver; allow callers to pass other mongoose options.
-  const defaultOpts = {
-    // increased timeouts for cloud connections
-    socketTimeoutMS: 45000,
-    serverSelectionTimeoutMS: 45000,
-    ...opts,
+function getConfig() {
+  const host = process.env.MYSQL_HOST;
+  const user = process.env.MYSQL_USER;
+  const password = process.env.MYSQL_PASSWORD;
+  const database = process.env.MYSQL_DATABASE;
+  const port = Number(process.env.MYSQL_PORT || 3306);
+  const connectTimeout = Number(process.env.MYSQL_CONNECT_TIMEOUT_MS || 10000);
+
+  if (!host || !user || !database) {
+    throw new Error('MYSQL_HOST, MYSQL_USER and MYSQL_DATABASE must be set');
+  }
+
+  return {
+    host,
+    user,
+    password,
+    database,
+    port,
+    connectTimeout,
+    waitForConnections: true,
+    connectionLimit: Number(process.env.MYSQL_POOL_SIZE || 10),
+    queueLimit: 0,
+    charset: 'utf8mb4',
+    namedPlaceholders: true,
   };
+}
 
-  // Remove legacy options if present in opts (backwards compatible)
-  ['useNewUrlParser', 'useUnifiedTopology'].forEach((k) => {
-    if (k in defaultOpts) {
-      delete defaultOpts[k];
-      logger.warn(`Removed deprecated mongo option: ${k}`);
-    }
+function assertSafeDatabaseName(name) {
+  if (!/^[A-Za-z0-9_]+$/.test(name)) {
+    throw new Error('MYSQL_DATABASE contains invalid characters');
+  }
+}
+
+async function ensureDatabaseExists(cfg) {
+  assertSafeDatabaseName(cfg.database);
+  const bootstrap = await mysql.createConnection({
+    host: cfg.host,
+    user: cfg.user,
+    password: cfg.password,
+    port: cfg.port,
+    connectTimeout: cfg.connectTimeout,
+    charset: 'utf8mb4',
   });
 
-  if (!uri) {
-    throw new Error('MONGODB_URI (or DATABASE_URL) is not set');
+  try {
+    await bootstrap.query(
+      `CREATE DATABASE IF NOT EXISTS \`${cfg.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+    );
+  } finally {
+    await bootstrap.end();
+  }
+}
+
+function dbTargetLabel() {
+  return `${process.env.MYSQL_HOST || 'unset-host'}:${process.env.MYSQL_PORT || 3306}/${process.env.MYSQL_DATABASE || 'unset-db'}`;
+}
+
+async function connect() {
+  if (pool) return pool;
+  const cfg = getConfig();
+  await ensureDatabaseExists(cfg);
+  pool = mysql.createPool(cfg);
+  await pool.query('SELECT 1');
+  logger.info('MySQL connected');
+  return pool;
+}
+
+async function query(sql, params = []) {
+  const activePool = await connect();
+  const [rows] = await activePool.execute(sql, params);
+  return rows;
+}
+
+async function ensureSchema() {
+  if (schemaEnsured) return;
+  const activePool = await connect();
+  const schemaPath = path.join(__dirname, '..', 'sql', '01_schema.sql');
+
+  if (!fs.existsSync(schemaPath)) {
+    logger.warn(`Schema file not found at ${schemaPath}`);
+    return;
   }
 
-  try {
-    await mongoose.connect(uri, defaultOpts);
-    logger.info('MongoDB connected');
-    return mongoose.connection;
-  } catch (err) {
-    logger.error('MongoDB connection error:', err && err.message ? err.message : err);
-    throw err;
+  const sql = fs.readFileSync(schemaPath, 'utf8');
+  const statements = sql
+    .split(/;\s*[\r\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  for (const statement of statements) {
+    await activePool.query(statement);
   }
+
+  schemaEnsured = true;
+  logger.info('MySQL schema ensured');
 }
 
 async function disconnect() {
+  if (!pool) return;
   try {
-    await mongoose.disconnect();
-    logger.info('MongoDB disconnected');
+    await pool.end();
+    logger.info('MySQL disconnected');
   } catch (err) {
-    logger.warn('Error while disconnecting mongoose:', err && err.message ? err.message : err);
+    logger.warn('Error while disconnecting MySQL:', err && err.message ? err.message : err);
+  } finally {
+    pool = null;
+    schemaEnsured = false;
   }
 }
 
-/**
- * Connect with retry/backoff using environment variables as defaults.
- * Options:
- *  - uri
- *  - attempts (default from DB_CONN_RETRY_ATTEMPTS or 5)
- *  - delayMs (base delay in ms, default DB_CONN_RETRY_DELAY_MS or 2000)
- *  - onAttempt(err, attempt) optional hook
- */
 async function connectWithRetry(opts = {}) {
-  const uri = opts.uri || process.env.MONGODB_URI || process.env.DATABASE_URL;
   const maxAttempts = Number(opts.attempts ?? process.env.DB_CONN_RETRY_ATTEMPTS ?? 5);
   const baseDelay = Number(opts.delayMs ?? process.env.DB_CONN_RETRY_DELAY_MS ?? 2000);
 
-  if (!uri) {
-    throw new Error('MONGODB_URI or DATABASE_URL must be provided to connectWithRetry');
-  }
-
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await connect(uri, opts.connectOpts || {});
+      const activePool = await connect();
+      await ensureSchema();
+      return activePool;
     } catch (err) {
       const isLast = attempt === maxAttempts;
-      if (opts.onAttempt && typeof opts.onAttempt === 'function') {
+      if (typeof opts.onAttempt === 'function') {
         try {
           opts.onAttempt(err, attempt, maxAttempts);
-        } catch (e) {
-          // ignore hook errors
-        }
+        } catch (_) {}
       }
 
-      logger.error(`DB connect attempt ${attempt}/${maxAttempts} failed:`, err && err.message ? err.message : err);
+      const message = err && err.message ? err.message : String(err);
+      logger.error(`DB connect attempt ${attempt}/${maxAttempts} failed for ${dbTargetLabel()}: ${message}`);
       if (isLast) {
-        logger.error('Failed to connect to DB after retries.');
+        logger.error(`Failed to connect to MySQL after retries. Target: ${dbTargetLabel()}`);
         throw err;
       }
 
-      const delay = baseDelay * Math.pow(2, attempt - 1); // exponential backoff
+      const delay = baseDelay * Math.pow(2, attempt - 1);
       logger.info(`Retrying DB connection in ${delay}ms...`);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
+
+  throw new Error('Unexpected DB retry state');
 }
 
-module.exports = { connect, connectWithRetry, disconnect, mongoose };
+module.exports = {
+  connect,
+  connectWithRetry,
+  disconnect,
+  ensureSchema,
+  query,
+};
 

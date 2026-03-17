@@ -1,16 +1,10 @@
-const { createMediaFromUpload } = require('./media.service');
+const { createMediaFromUpload, listCloudMedia, updateMediaById, getMediaById, deleteMediaById } = require('./media.service');
 const { getAuthenticationParameters, deleteFile } = require('../../utils/cloudinary');
 const { uploadSchema, updateSchema, signSchema } = require('./media.validation');
-const Media = require('./media.model');
 
 async function list(req, res) {
   try {
-    const media = await Media.find({
-      $or: [
-        { status: 'cloud' },
-        { url: /res\.cloudinary\.com/i }
-      ]
-    }).sort({ createdAt: -1 });
+    const media = await listCloudMedia();
     res.json(media);
   } catch (err) {
     console.error('Media list error:', err && err.message ? err.message : err);
@@ -87,7 +81,7 @@ async function update(req, res) {
   if (error) return res.status(400).json({ message: error.message });
 
   try {
-    const updated = await Media.findByIdAndUpdate(req.params.id, value, { new: true });
+    const updated = await updateMediaById(req.params.id, value);
     if (!updated) return res.status(404).json({ message: 'Not found' });
     res.json(updated);
   } catch (err) {
@@ -98,7 +92,7 @@ async function update(req, res) {
 
 async function remove(req, res) {
   try {
-    const media = await Media.findById(req.params.id);
+    const media = await getMediaById(req.params.id);
     if (!media) return res.status(404).json({ message: 'Not found' });
 
     if (media.public_id) {
@@ -109,7 +103,7 @@ async function remove(req, res) {
       }
     }
 
-    await Media.deleteOne({ _id: media._id });
+    await deleteMediaById(media._id || media.id);
     res.status(204).end();
   } catch (err) {
     console.error('Media delete error:', err && err.message ? err.message : err);

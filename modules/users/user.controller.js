@@ -1,5 +1,4 @@
-const { createUser, listUsers, getUser, updateUser, deleteUser } = require('./user.service');
-const User = require('./user.model');
+const { createUser, listUsers, getUser, updateUser, deleteUser, countUsers } = require('./user.service');
 const { createSchema, updateSchema } = require('./user.validation');
 
 async function create(req, res) {
@@ -21,7 +20,7 @@ async function create(req, res) {
     res.status(201).json(doc);
   } catch (err) {
     console.log('User creation error:', err);
-    if (err.code === 11000) {
+    if (err.code === 11000 || err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ message: 'Email already exists' });
     }
     res.status(500).json({ message: err.message });
@@ -61,7 +60,7 @@ async function update(req, res) {
     if (!doc) return res.status(404).json({ message: 'User not found' });
     res.json(doc);
   } catch (err) {
-    if (err.code === 11000) {
+    if (err.code === 11000 || err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ message: 'Email already exists' });
     }
     res.status(500).json({ message: err.message });
@@ -80,7 +79,7 @@ async function remove(req, res) {
 
 async function getUserCount(req, res) {
   try {
-    const count = await User.countDocuments();
+    const count = await countUsers();
     res.json({ count });
   } catch (err) {
     res.status(500).json({ message: err.message });

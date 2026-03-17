@@ -9,14 +9,14 @@ backupQueue.process(async (job) => {
 
   console.log(`Processing backup job: ${type} for backup ${backupId}`);
 
-  const Backup = require('../modules/backups/backup.model');
-  const backup = await Backup.findById(backupId);
+  const { getBackup, updateBackup } = require('../modules/backups/backup.service');
+  const backup = await getBackup(backupId);
   if (!backup) {
     throw new Error(`Backup not found: ${backupId}`);
   }
 
   try {
-    await Backup.findByIdAndUpdate(backupId, { status: 'in-progress' });
+    await updateBackup(backupId, { status: 'running' });
 
     switch (type) {
       case 'database':
@@ -25,7 +25,7 @@ backupQueue.process(async (job) => {
         // In real implementation, you'd dump the database
         // For now, just create a placeholder file
         fs.writeFileSync(backupPath, JSON.stringify({ message: 'Database backup placeholder' }));
-        await Backup.findByIdAndUpdate(backupId, {
+        await updateBackup(backupId, {
           status: 'completed',
           filePath: backupPath,
           size: fs.statSync(backupPath).size
@@ -37,7 +37,7 @@ backupQueue.process(async (job) => {
         const fileBackupPath = path.join(process.cwd(), 'backups', `files-${Date.now()}.zip`);
         // In real implementation, zip files
         fs.writeFileSync(fileBackupPath, 'File backup placeholder');
-        await Backup.findByIdAndUpdate(backupId, {
+        await updateBackup(backupId, {
           status: 'completed',
           filePath: fileBackupPath,
           size: fs.statSync(fileBackupPath).size
@@ -50,7 +50,7 @@ backupQueue.process(async (job) => {
 
     console.log(`Backup processing completed for ${backupId}`);
   } catch (error) {
-    await Backup.findByIdAndUpdate(backupId, { status: 'failed', error: error.message });
+    await updateBackup(backupId, { status: 'failed', error: error.message });
     throw error;
   }
 });

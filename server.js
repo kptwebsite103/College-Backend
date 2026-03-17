@@ -17,30 +17,27 @@ let loaders;
 // ----------------------------
 async function seedAdminUser() {
   try {
-    const mongoose = require("mongoose");
-    const User = require("./modules/users/user.model");
-    const bcrypt = require("bcrypt");
+    const { createUser, findUserByUsername, updateUser } = require('./modules/users/user.service');
 
     const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
     const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "AdminPass123!";
 
-    const existing = await User.findOne({ username: ADMIN_USERNAME });
+    const existing = await findUserByUsername(ADMIN_USERNAME);
     if (!existing) {
-      const hashed = await bcrypt.hash(ADMIN_PASSWORD, 12);
-      const adminUser = new User({
+      await createUser({
         username: ADMIN_USERNAME,
-        password: hashed,
+        email: process.env.ADMIN_EMAIL || `${ADMIN_USERNAME}@local.dev`,
+        password: ADMIN_PASSWORD,
         firstName: "Admin",
         lastName: "User",
         roles: ["admin"],
       });
-      await adminUser.save();
       logger.info(`Created default admin user: ${ADMIN_USERNAME}`);
     } else if (!existing.roles.includes("admin")) {
-      existing.roles = Array.from(
+      const nextRoles = Array.from(
         new Set([...(existing.roles || []), "admin"]),
       );
-      await existing.save();
+      await updateUser(existing._id || existing.id, { roles: nextRoles });
       logger.info(`Updated existing user ${ADMIN_USERNAME} with admin role`);
     }
   } catch (e) {
@@ -61,20 +58,23 @@ async function shutdown(exitCode = 0) {
   logger.info("Shutting down gracefully...");
 
   try {
-    if (server && server.close) {
+    const cleanupAndExit = async () => {
+      try {
+        if (loaders?.socket?.close) await loaders.socket.close();
+        if (disconnectDb) await disconnectDb();
+      } catch (e) {
+        logger.error("Error during shutdown cleanup:", e);
+      }
+      logger.info("Shutdown complete. Exiting.");
+      process.exit(exitCode);
+    };
+
+    if (server && server.close && server.listening) {
       server.close(async (err) => {
-        if (err) logger.error("Error closing server:", err);
-
-        // Close WebSocket and database connections
-        try {
-          if (loaders?.socket?.close) await loaders.socket.close();
-          if (disconnectDb) await disconnectDb();
-        } catch (e) {
-          logger.error("Error during shutdown cleanup:", e);
+        if (err && err.code !== "ERR_SERVER_NOT_RUNNING") {
+          logger.error("Error closing server:", err);
         }
-
-        logger.info("Shutdown complete. Exiting.");
-        process.exit(exitCode);
+        await cleanupAndExit();
       });
 
       // Force destroy remaining connections after timeout
@@ -93,7 +93,7 @@ async function shutdown(exitCode = 0) {
         Number(process.env.SHUTDOWN_TIMEOUT_MS || 10000),
       );
     } else {
-      process.exit(exitCode);
+      await cleanupAndExit();
     }
   } catch (e) {
     logger.error("Unexpected shutdown error:", e);
@@ -131,6 +131,9 @@ async function startServer() {
 
     // Server errors
     server.on("error", (err) => {
+      if (err && err.code === "EADDRINUSE") {
+        logger.error(`Port ${PORT} is already in use. Stop the existing process or set a different PORT.`);
+      }
       logger.error("Server error:", err);
       shutdown(1);
     });

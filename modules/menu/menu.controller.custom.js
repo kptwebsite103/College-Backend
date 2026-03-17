@@ -1,16 +1,6 @@
-const mongoose = require('mongoose');
-const { createMenu } = require('./menu.service');
+const { createMenu, getMenu, listMenus, removeMenu, setMenuStatus, updateMenu } = require('./menu.service');
 
 const ALLOWED_STATUSES = ['Created', 'Approved', 'Rejected'];
-
-// Helper function to convert string ID to ObjectId
-function toObjectId(id) {
-  try {
-    return new mongoose.Types.ObjectId(id);
-  } catch (error) {
-    return id; // Return as-is if conversion fails
-  }
-}
 
 function getRoles(req) {
   const rawRoles = (req.user && req.user.roles) || [];
@@ -36,16 +26,14 @@ function sanitizeItems(items, allowApproved) {
 
   return items.map((item) => {
     const next = { ...item };
-    const hasId = Boolean(next._id);
+    const hasId = Boolean(next._id || next.id);
     const status = normalizeStatus(next.status, 'Created');
 
     if (!allowApproved) {
       if ((status === 'Approved' || status === 'Rejected') && !hasId) {
         next.status = 'Created';
-      } else if (!ALLOWED_STATUSES.includes(status)) {
-        next.status = 'Created';
       } else {
-        next.status = status;
+        next.status = ALLOWED_STATUSES.includes(status) ? status : 'Created';
       }
     } else {
       next.status = status;
@@ -61,21 +49,12 @@ function sanitizeItems(items, allowApproved) {
 
 async function list(req, res) {
   try {
-    const db = mongoose.connection.db;
     const { limit, skip, status } = req.query;
-
-    let filter = {};
-    if (status) {
-      filter.status = status;
-    }
-
-    const menus = await db.collection('menus')
-      .find(filter)
-      .sort({ order_no: 1 })
-      .skip(skip ? parseInt(skip) : 0)
-      .limit(limit ? parseInt(limit) : 50)
-      .toArray();
-
+    const menus = await listMenus({
+      limit: limit ? Number(limit) : 50,
+      skip: skip ? Number(skip) : 0,
+      status: status || undefined,
+    });
     res.json(menus);
   } catch (error) {
     console.error('List menus error:', error);
@@ -85,13 +64,8 @@ async function list(req, res) {
 
 async function getById(req, res) {
   try {
-    const db = mongoose.connection.db;
-    const menu = await db.collection('menus').findOne({ _id: toObjectId(req.params.id) });
-
-    if (!menu) {
-      return res.status(404).json({ message: 'Menu not found' });
-    }
-
+    const menu = await getMenu(req.params.id);
+    if (!menu) return res.status(404).json({ message: 'Menu not found' });
     res.json(menu);
   } catch (error) {
     console.error('Get menu error:', error);
@@ -138,14 +112,7 @@ async function update(req, res) {
       return res.status(403).json({ message: 'Creator or admin access required' });
     }
 
-    const db = mongoose.connection.db;
-    const updateData = {
-      ...req.body,
-      updatedAt: new Date()
-    };
-
-    // Remove _id from updateData to avoid immutable field error
-    delete updateData._id;
+    const updateData = { ...req.body };
 
     if (!admin) {
       updateData.status = 'Created';
@@ -158,16 +125,8 @@ async function update(req, res) {
       updateData.items = sanitizeItems(updateData.items, admin);
     }
 
-    const result = await db.collection('menus').updateOne(
-      { _id: toObjectId(req.params.id) },
-      { $set: updateData }
-    );
-
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ message: 'Menu not found' });
-    }
-
-    const updatedMenu = await db.collection('menus').findOne({ _id: toObjectId(req.params.id) });
+    const updatedMenu = await updateMenu(req.params.id, updateData);
+    if (!updatedMenu) return res.status(404).json({ message: 'Menu not found' });
     res.json(updatedMenu);
   } catch (error) {
     console.error('Update menu error:', error);
@@ -181,17 +140,8 @@ async function approve(req, res) {
     const roles = getRoles(req);
     if (!isAdmin(roles)) return res.status(403).json({ message: 'Admin access required' });
 
-    const db = mongoose.connection.db;
-    const result = await db.collection('menus').updateOne(
-      { _id: toObjectId(req.params.id) },
-      { $set: { status: 'Approved', active: true, updatedAt: new Date() } }
-    );
-
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ message: 'Menu not found' });
-    }
-
-    const updatedMenu = await db.collection('menus').findOne({ _id: toObjectId(req.params.id) });
+    const updatedMenu = await setMenuStatus(req.params.id, { status: 'Approved', active: true });
+    if (!updatedMenu) return res.status(404).json({ message: 'Menu not found' });
     res.json(updatedMenu);
   } catch (error) {
     console.error('Approve menu error:', error);
@@ -205,17 +155,8 @@ async function reject(req, res) {
     const roles = getRoles(req);
     if (!isAdmin(roles)) return res.status(403).json({ message: 'Admin access required' });
 
-    const db = mongoose.connection.db;
-    const result = await db.collection('menus').updateOne(
-      { _id: toObjectId(req.params.id) },
-      { $set: { status: 'Rejected', active: false, updatedAt: new Date() } }
-    );
-
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ message: 'Menu not found' });
-    }
-
-    const updatedMenu = await db.collection('menus').findOne({ _id: toObjectId(req.params.id) });
+    const updatedMenu = await setMenuStatus(req.params.id, { status: 'Rejected', active: false });
+    if (!updatedMenu) return res.status(404).json({ message: 'Menu not found' });
     res.json(updatedMenu);
   } catch (error) {
     console.error('Reject menu error:', error);
@@ -225,13 +166,8 @@ async function reject(req, res) {
 
 async function remove(req, res) {
   try {
-    const db = mongoose.connection.db;
-    const result = await db.collection('menus').deleteOne({ _id: toObjectId(req.params.id) });
-
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ message: 'Menu not found' });
-    }
-
+    const removed = await removeMenu(req.params.id);
+    if (!removed) return res.status(404).json({ message: 'Menu not found' });
     res.status(204).end();
   } catch (error) {
     console.error('Delete menu error:', error);
@@ -240,11 +176,11 @@ async function remove(req, res) {
 }
 
 module.exports = {
-  list,
-  getById,
-  create,
-  update,
   approve,
+  create,
+  getById,
+  list,
   reject,
-  remove
+  remove,
+  update,
 };

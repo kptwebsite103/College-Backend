@@ -11,7 +11,11 @@
 Go to your Vercel dashboard → Project Settings → Environment Variables and add:
 
 ```
-MONGODB_URI=mongodb+srv://kptwebsite103:kptwebsite103@kpt.syjmrn1.mongodb.net/kpt-website
+MYSQL_HOST=193.203.184.197
+MYSQL_USER=u789801030_KPT_CMS_ADMIN
+MYSQL_PASSWORD=Admin@mng103
+MYSQL_DATABASE=u789801030_KPT_CMS
+MYSQL_PORT=3306
 JWT_SECRET=your-jwt-secret-key-here
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=AdminPass123
@@ -29,7 +33,7 @@ NODE_ENV=production
 
 - If deployment fails, check Vercel Function Logs
 - Ensure all environment variables are set
-- Verify MongoDB connection string is correct
+- Verify MySQL credentials are correct
 - Check for any build errors in deployment logs
 
 ## Files Structure:
