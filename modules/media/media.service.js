@@ -198,7 +198,7 @@ async function syncMediaFromFilesystem() {
   }
 }
 
-async function filterMediaToExistingFiles(items) {
+async function annotateMediaFileAvailability(items) {
   const checks = await Promise.all(
     items.map(async (item) => {
       const localPathCandidate = mediaUrlToLocalPath(item.url);
@@ -211,28 +211,31 @@ async function filterMediaToExistingFiles(items) {
         if (localPathCandidate.preferred) candidates.push(localPathCandidate.preferred);
         if (localPathCandidate.legacy) candidates.push(localPathCandidate.legacy);
       }
-      if (!candidates.length) return true;
+
+      if (!candidates.length) {
+        return { existsOnDisk: null, fileMissing: false };
+      }
 
       for (const localPath of candidates) {
         if (!localPath) continue;
         try {
           const stat = await fs.promises.stat(localPath);
-          if (stat.isFile()) return true;
+          if (stat.isFile()) {
+            return { existsOnDisk: true, fileMissing: false };
+          }
         } catch {
           // try next candidate
         }
       }
 
-      try {
-        const normalized = normalizeMediaUrl(item.url);
-        return /^https?:\/\//i.test(String(item.url || '')) && !/^\/uploads\//i.test(normalized);
-      } catch {
-        return false;
-      }
+      return { existsOnDisk: false, fileMissing: true };
     }),
   );
 
-  return items.filter((_, idx) => checks[idx]);
+  return items.map((item, idx) => ({
+    ...item,
+    ...checks[idx],
+  }));
 }
 
 function sanitizeFolder(folder) {
@@ -370,7 +373,7 @@ async function listCloudMedia() {
      ORDER BY createdAt DESC`,
   );
   const mapped = rows.map(mapMedia);
-  return filterMediaToExistingFiles(mapped);
+  return annotateMediaFileAvailability(mapped);
 }
 
 async function getMediaById(id) {
