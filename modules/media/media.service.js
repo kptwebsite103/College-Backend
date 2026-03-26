@@ -3,6 +3,7 @@ const path = require('path');
 const { query } = require('../../config/database');
 const { buildUpdate, generateId, parseDate, parseJson, toJson, withId } = require('../../utils/mysql-utils');
 const { UPLOADS_ROOT } = require('../../config/uploads');
+const LEGACY_UPLOADS_ROOT = path.join(__dirname, '..', '..', 'public', 'uploads');
 
 function detectType(filename, mimetype) {
   if (mimetype) {
@@ -85,11 +86,14 @@ function mediaUrlToLocalPath(url) {
     .filter(Boolean)
     .join(path.sep);
   if (!relative) return null;
-  return path.join(UPLOADS_ROOT, relative);
+  const preferred = path.join(UPLOADS_ROOT, relative);
+  const legacy = path.join(LEGACY_UPLOADS_ROOT, relative);
+  if (preferred === legacy) return preferred;
+  return { preferred, legacy };
 }
 
-function mediaFileToUrl(absPath) {
-  const rel = path.relative(UPLOADS_ROOT, absPath).replace(/\\/g, '/');
+function mediaFileToUrl(absPath, rootDir) {
+  const rel = path.relative(rootDir, absPath).replace(/\\/g, '/');
   if (!rel || rel.startsWith('..')) return null;
   return `/uploads/${rel}`;
 }
@@ -124,6 +128,14 @@ async function walkUploadFiles(dir) {
   return files;
 }
 
+function getUploadScanRoots() {
+  const roots = [UPLOADS_ROOT];
+  if (LEGACY_UPLOADS_ROOT !== UPLOADS_ROOT) {
+    roots.push(LEGACY_UPLOADS_ROOT);
+  }
+  return Array.from(new Set(roots));
+}
+
 async function syncMediaFromFilesystem() {
   const existingRows = await query('SELECT _id, url FROM media');
   const knownUrls = new Set(
@@ -132,65 +144,88 @@ async function syncMediaFromFilesystem() {
       .filter(Boolean),
   );
 
-  const files = await walkUploadFiles(UPLOADS_ROOT);
-  for (const absPath of files) {
-    const url = mediaFileToUrl(absPath);
-    if (!url) continue;
+  const roots = getUploadScanRoots();
+  for (const rootDir of roots) {
+    const files = await walkUploadFiles(rootDir);
+    for (const absPath of files) {
+      const url = mediaFileToUrl(absPath, rootDir);
+      if (!url) continue;
 
-    const normalizedUrl = normalizeMediaUrl(url);
-    if (knownUrls.has(normalizedUrl)) continue;
+      const normalizedUrl = normalizeMediaUrl(url);
+      if (knownUrls.has(normalizedUrl)) continue;
 
-    const alreadyExists = await query(
-      'SELECT _id FROM media WHERE url = ? LIMIT 1',
-      [url],
-    );
-    if (alreadyExists.length) {
+      const alreadyExists = await query(
+        'SELECT _id FROM media WHERE url = ? LIMIT 1',
+        [url],
+      );
+      if (alreadyExists.length) {
+        knownUrls.add(normalizedUrl);
+        continue;
+      }
+
+      let stat = null;
+      try {
+        stat = await fs.promises.stat(absPath);
+      } catch {
+        stat = null;
+      }
+      if (!stat || !stat.isFile()) continue;
+
+      const filename = path.basename(absPath);
+      const format = path.extname(filename).replace('.', '').toLowerCase() || null;
+
+      await createMedia({
+        url,
+        title: deriveTitleFromFilename(filename),
+        filename,
+        thumbnailUrl: null,
+        format,
+        size: stat.size,
+        type: detectType(filename, null),
+        tags: [],
+        uploadedBy: null,
+        departmentId: null,
+        usageRefs: [],
+        localPath: absPath,
+        status: 'local',
+        metadata: {
+          source: 'filesystem-sync',
+        },
+      });
+
       knownUrls.add(normalizedUrl);
-      continue;
     }
-
-    let stat = null;
-    try {
-      stat = await fs.promises.stat(absPath);
-    } catch {
-      stat = null;
-    }
-    if (!stat || !stat.isFile()) continue;
-
-    const filename = path.basename(absPath);
-    const format = path.extname(filename).replace('.', '').toLowerCase() || null;
-
-    await createMedia({
-      url,
-      title: deriveTitleFromFilename(filename),
-      filename,
-      thumbnailUrl: null,
-      format,
-      size: stat.size,
-      type: detectType(filename, null),
-      tags: [],
-      uploadedBy: null,
-      departmentId: null,
-      usageRefs: [],
-      localPath: absPath,
-      status: 'local',
-      metadata: {
-        source: 'filesystem-sync',
-      },
-    });
-
-    knownUrls.add(normalizedUrl);
   }
 }
 
 async function filterMediaToExistingFiles(items) {
   const checks = await Promise.all(
     items.map(async (item) => {
-      const localPath = item.localPath || mediaUrlToLocalPath(item.url);
-      if (!localPath) return true;
+      const localPathCandidate = mediaUrlToLocalPath(item.url);
+      const candidates = [];
+      if (item.localPath) candidates.push(item.localPath);
+      if (localPathCandidate && typeof localPathCandidate === 'string') {
+        candidates.push(localPathCandidate);
+      }
+      if (localPathCandidate && typeof localPathCandidate === 'object') {
+        if (localPathCandidate.preferred) candidates.push(localPathCandidate.preferred);
+        if (localPathCandidate.legacy) candidates.push(localPathCandidate.legacy);
+      }
+      if (!candidates.length) return true;
+
+      for (const localPath of candidates) {
+        if (!localPath) continue;
+        try {
+          const stat = await fs.promises.stat(localPath);
+          if (stat.isFile()) return true;
+        } catch {
+          // try next candidate
+        }
+      }
+
       try {
-        const stat = await fs.promises.stat(localPath);
-        return stat.isFile();
+        const normalized = normalizeMediaUrl(item.url);
+        return /^https?:\/\//i.test(String(item.url || '')) && !/^\/uploads\//i.test(normalized);
       } catch {
         return false;
       }
