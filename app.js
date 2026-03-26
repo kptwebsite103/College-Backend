@@ -11,6 +11,10 @@ function normalizeOrigin(origin) {
   return String(origin || '').trim().replace(/\/+$/, '');
 }
 
+function isTrustedVercelOrigin(origin) {
+  return /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin);
+}
+
 const configuredOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',')
   : [
@@ -30,7 +34,14 @@ app.use(cors({
   origin(origin, callback) {
     if (!origin) return callback(null, true);
     const requestOrigin = normalizeOrigin(origin);
-    const isAllowed = allowedOrigins.includes(requestOrigin);
+    const isAllowed =
+      allowedOrigins.includes(requestOrigin) ||
+      isTrustedVercelOrigin(requestOrigin);
+    if (!isAllowed) {
+      console.warn(
+        `[CORS] Blocked origin: ${requestOrigin}. Allowed: ${allowedOrigins.join(', ')}`,
+      );
+    }
     return callback(null, isAllowed);
   },
   credentials: true,
