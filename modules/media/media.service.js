@@ -2,8 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { query } = require('../../config/database');
 const { buildUpdate, generateId, parseDate, parseJson, toJson, withId } = require('../../utils/mysql-utils');
-
-const UPLOADS_ROOT = path.join(__dirname, '..', '..', 'public', 'uploads');
+const { UPLOADS_ROOT } = require('../../config/uploads');
 
 function detectType(filename, mimetype) {
   if (mimetype) {

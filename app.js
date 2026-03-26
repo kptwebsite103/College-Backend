@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
+const { UPLOADS_ROOT } = require('./config/uploads');
 
 const app = express();
 
@@ -61,7 +62,9 @@ app.use(express.urlencoded({ extended: false }));
 // ----------------------------
 // Static files
 // ----------------------------
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+app.use('/uploads', express.static(UPLOADS_ROOT));
+// Backward compatibility for older media URLs that may include "/api/uploads/*".
+app.use('/api/uploads', express.static(UPLOADS_ROOT));
 
 // ----------------------------
 // Express settings

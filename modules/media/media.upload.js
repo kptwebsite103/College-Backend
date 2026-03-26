@@ -1,9 +1,10 @@
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const { UPLOADS_ROOT } = require('../../config/uploads');
 
 // Store uploads temporarily on disk, then service moves them to final folder.
-const tmpDir = path.join(__dirname, '..', '..', 'public', 'uploads', 'tmp');
+const tmpDir = path.join(UPLOADS_ROOT, 'tmp');
 fs.mkdirSync(tmpDir, { recursive: true });
 
 const storage = multer.diskStorage({
