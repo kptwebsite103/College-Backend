@@ -59,6 +59,147 @@ function mapMedia(row) {
   });
 }
 
+function normalizeMediaUrl(url) {
+  let value = String(url || '')
+    .trim()
+    .replace(/\\/g, '/');
+  if (!value) return '';
+
+  // Drop origin when absolute URL is stored.
+  value = value.replace(/^https?:\/\/[^/]+/i, '');
+
+  // Normalize legacy API-prefixed upload paths.
+  value = value
+    .replace(/^\/?api\/uploads\//i, '/uploads/')
+    .replace(/^\/?uploads\//i, '/uploads/');
+
+  return value.startsWith('/') ? value : `/${value}`;
+}
+
+function mediaUrlToLocalPath(url) {
+  const normalized = normalizeMediaUrl(url);
+  const match = normalized.match(/^\/uploads\/(.+)$/i);
+  if (!match) return null;
+  const relative = match[1]
+    .split('/')
+    .filter(Boolean)
+    .join(path.sep);
+  if (!relative) return null;
+  return path.join(UPLOADS_ROOT, relative);
+}
+
+function mediaFileToUrl(absPath) {
+  const rel = path.relative(UPLOADS_ROOT, absPath).replace(/\\/g, '/');
+  if (!rel || rel.startsWith('..')) return null;
+  return `/uploads/${rel}`;
+}
+
+function deriveTitleFromFilename(filename) {
+  const base = path.basename(String(filename || ''), path.extname(String(filename || '')));
+  return base.replace(/[_-]+/g, ' ').trim();
+}
+
+async function walkUploadFiles(dir) {
+  let entries = [];
+  try {
+    entries = await fs.promises.readdir(dir, { withFileTypes: true });
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return [];
+    throw err;
+  }
+
+  const files = [];
+  for (const entry of entries) {
+    const abs = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name.toLowerCase() === 'tmp') continue;
+      const nested = await walkUploadFiles(abs);
+      files.push(...nested);
+      continue;
+    }
+    if (entry.isFile()) {
+      files.push(abs);
+    }
+  }
+  return files;
+}
+
+async function syncMediaFromFilesystem() {
+  const existingRows = await query('SELECT _id, url FROM media');
+  const knownUrls = new Set(
+    existingRows
+      .map((row) => normalizeMediaUrl(row.url))
+      .filter(Boolean),
+  );
+
+  const files = await walkUploadFiles(UPLOADS_ROOT);
+  for (const absPath of files) {
+    const url = mediaFileToUrl(absPath);
+    if (!url) continue;
+
+    const normalizedUrl = normalizeMediaUrl(url);
+    if (knownUrls.has(normalizedUrl)) continue;
+
+    const alreadyExists = await query(
+      'SELECT _id FROM media WHERE url = ? LIMIT 1',
+      [url],
+    );
+    if (alreadyExists.length) {
+      knownUrls.add(normalizedUrl);
+      continue;
+    }
+
+    let stat = null;
+    try {
+      stat = await fs.promises.stat(absPath);
+    } catch {
+      stat = null;
+    }
+    if (!stat || !stat.isFile()) continue;
+
+    const filename = path.basename(absPath);
+    const format = path.extname(filename).replace('.', '').toLowerCase() || null;
+
+    await createMedia({
+      url,
+      title: deriveTitleFromFilename(filename),
+      filename,
+      thumbnailUrl: null,
+      format,
+      size: stat.size,
+      type: detectType(filename, null),
+      tags: [],
+      uploadedBy: null,
+      departmentId: null,
+      usageRefs: [],
+      localPath: absPath,
+      status: 'local',
+      metadata: {
+        source: 'filesystem-sync',
+      },
+    });
+
+    knownUrls.add(normalizedUrl);
+  }
+}
+
+async function filterMediaToExistingFiles(items) {
+  const checks = await Promise.all(
+    items.map(async (item) => {
+      const localPath = item.localPath || mediaUrlToLocalPath(item.url);
+      if (!localPath) return true;
+      try {
+        const stat = await fs.promises.stat(localPath);
+        return stat.isFile();
+      } catch {
+        return false;
+      }
+    }),
+  );
+
+  return items.filter((_, idx) => checks[idx]);
+}
+
 function sanitizeFolder(folder) {
   const safe = String(folder || 'media')
     .replace(/\\/g, '/')
@@ -187,11 +328,14 @@ async function createMediaFromUpload({ file, filename, title, uploadedBy, depart
 }
 
 async function listCloudMedia() {
+  await syncMediaFromFilesystem();
+
   const rows = await query(
     `SELECT * FROM media
      ORDER BY createdAt DESC`,
   );
-  return rows.map(mapMedia);
+  const mapped = rows.map(mapMedia);
+  return filterMediaToExistingFiles(mapped);
 }
 
 async function getMediaById(id) {
