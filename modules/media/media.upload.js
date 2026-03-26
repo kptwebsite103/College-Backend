@@ -1,7 +1,19 @@
 const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
 
-// Store uploads in memory and stream directly to Cloudinary
-const storage = multer.memoryStorage();
+// Store uploads temporarily on disk, then service moves them to final folder.
+const tmpDir = path.join(__dirname, '..', '..', 'public', 'uploads', 'tmp');
+fs.mkdirSync(tmpDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, tmpDir),
+  filename: (req, file, cb) => {
+    const safeName = String(file.originalname || 'file')
+      .replace(/[^a-zA-Z0-9._-]/g, '_');
+    cb(null, `${Date.now()}-${safeName}`);
+  },
+});
 
 const allowedTypes = [
   // Images

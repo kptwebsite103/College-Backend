@@ -11,14 +11,14 @@
 Go to your Vercel dashboard → Project Settings → Environment Variables and add:
 
 ```
-MYSQL_HOST=193.203.184.197
-MYSQL_USER=u789801030_KPT_CMS_ADMIN
-MYSQL_PASSWORD=Admin@mng103
-MYSQL_DATABASE=u789801030_KPT_CMS
+MYSQL_HOST=your-mysql-host
+MYSQL_USER=your-mysql-user
+MYSQL_PASSWORD=your-mysql-password
+MYSQL_DATABASE=your-mysql-database
 MYSQL_PORT=3306
 JWT_SECRET=your-jwt-secret-key-here
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=AdminPass123
+ADMIN_PASSWORD=set-a-strong-admin-password
 NODE_ENV=production
 ```
 

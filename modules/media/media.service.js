@@ -1,6 +1,9 @@
+const fs = require('fs');
+const path = require('path');
 const { query } = require('../../config/database');
 const { buildUpdate, generateId, parseDate, parseJson, toJson, withId } = require('../../utils/mysql-utils');
-const { uploadFile } = require('../../utils/cloudinary');
+
+const UPLOADS_ROOT = path.join(__dirname, '..', '..', 'public', 'uploads');
 
 function detectType(filename, mimetype) {
   if (mimetype) {
@@ -57,6 +60,65 @@ function mapMedia(row) {
   });
 }
 
+function sanitizeFolder(folder) {
+  const safe = String(folder || 'media')
+    .replace(/\\/g, '/')
+    .split('/')
+    .map((part) => part.replace(/[^a-zA-Z0-9_-]/g, ''))
+    .filter(Boolean)
+    .join('/');
+  return safe || 'media';
+}
+
+function sanitizeFileName(name) {
+  const base = path.basename(String(name || 'file'));
+  const dot = base.lastIndexOf('.');
+  const ext = dot >= 0 ? base.slice(dot) : '';
+  const stem = (dot >= 0 ? base.slice(0, dot) : base).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${stem || 'file'}-${unique}${ext}`;
+}
+
+async function ensureDir(dir) {
+  await fs.promises.mkdir(dir, { recursive: true });
+}
+
+async function writeUploadedFile({ file, filename, folder }) {
+  const safeFolder = sanitizeFolder(folder);
+  const safeFileName = sanitizeFileName(filename || file.originalname || 'file');
+  const targetDir = path.join(UPLOADS_ROOT, safeFolder);
+  const targetPath = path.join(targetDir, safeFileName);
+
+  await ensureDir(targetDir);
+
+  if (file.buffer) {
+    await fs.promises.writeFile(targetPath, file.buffer);
+  } else if (file.path) {
+    await fs.promises.rename(file.path, targetPath);
+  } else {
+    throw new Error('No file content found');
+  }
+
+  const stat = await fs.promises.stat(targetPath);
+
+  return {
+    absolutePath: targetPath,
+    relativeUrl: `/uploads/${safeFolder}/${safeFileName}`,
+    size: stat.size,
+  };
+}
+
+async function deleteLocalFile(localPath) {
+  if (!localPath) return;
+  try {
+    await fs.promises.unlink(localPath);
+  } catch (err) {
+    if (err && err.code !== 'ENOENT') {
+      throw err;
+    }
+  }
+}
+
 async function createMedia(payload) {
   const now = new Date();
   const _id = generateId();
@@ -92,37 +154,42 @@ async function createMedia(payload) {
 }
 
 async function createMediaFromUpload({ file, filename, title, uploadedBy, departmentId, tags = [], folder }) {
-  if (!file || !file.buffer) {
+  if (!file) {
     throw new Error('No file data received');
   }
 
-  const uploadResult = await uploadFile(file, filename, folder || 'media');
-  if (!uploadResult.success) {
-    throw new Error(uploadResult.error || 'Cloudinary upload failed');
-  }
+  const stored = await writeUploadedFile({
+    file,
+    filename: filename || file.originalname,
+    folder: folder || 'media',
+  });
 
-  const type = detectType(filename, file.mimetype);
+  const type = detectType(filename || file.originalname, file.mimetype);
 
   return createMedia({
-    url: uploadResult.data.url,
-    public_id: uploadResult.data.publicId || uploadResult.data.fileId,
+    url: stored.relativeUrl,
+    public_id: null,
     title: title || '',
-    filename,
-    thumbnailUrl: uploadResult.data.thumbnailUrl || null,
-    format: uploadResult.data.format,
-    size: uploadResult.data.bytes,
+    filename: path.basename(stored.absolutePath),
+    thumbnailUrl: null,
+    format: path.extname(stored.absolutePath).replace('.', '').toLowerCase() || null,
+    size: stored.size,
     type,
     tags,
     uploadedBy,
     departmentId,
-    status: 'cloud',
+    localPath: stored.absolutePath,
+    status: 'local',
+    metadata: {
+      mimetype: file.mimetype || null,
+      originalName: filename || file.originalname || null,
+    },
   });
 }
 
 async function listCloudMedia() {
   const rows = await query(
     `SELECT * FROM media
-     WHERE status = 'cloud' OR LOWER(url) LIKE '%res.cloudinary.com%'
      ORDER BY createdAt DESC`,
   );
   return rows.map(mapMedia);
@@ -174,7 +241,10 @@ async function updateMediaById(id, payload) {
 async function deleteMediaById(id) {
   const doc = await getMediaById(id);
   if (!doc) return null;
+
   await query('DELETE FROM media WHERE _id = ?', [id]);
+  await deleteLocalFile(doc.localPath);
+
   return doc;
 }
 

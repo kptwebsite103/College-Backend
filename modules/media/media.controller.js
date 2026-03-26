@@ -1,5 +1,4 @@
 const { createMediaFromUpload, listCloudMedia, updateMediaById, getMediaById, deleteMediaById } = require('./media.service');
-const { getAuthenticationParameters, deleteFile } = require('../../utils/cloudinary');
 const { uploadSchema, updateSchema, signSchema } = require('./media.validation');
 
 async function list(req, res) {
@@ -48,32 +47,12 @@ async function upload(req, res) {
   }
 }
 
-// Returns Cloudinary signature for client direct uploads
+// Local-file mode: no cloud signature required.
 function sign(req, res) {
-  const { error, value } = signSchema.validate(req.body);
+  const { error } = signSchema.validate(req.body);
   if (error) return res.status(400).json({ message: error.message });
 
-  try {
-    const authResult = getAuthenticationParameters(value || {});
-
-    if (!authResult.success) {
-      return res.status(500).json({ message: authResult.error || 'Could not generate authentication parameters' });
-    }
-
-    res.json({
-      signature: authResult.data.signature,
-      timestamp: authResult.data.timestamp,
-      apiKey: authResult.data.apiKey,
-      cloudName: authResult.data.cloudName,
-      folder: authResult.data.folder,
-      public_id: authResult.data.public_id,
-      resource_type: authResult.data.resource_type,
-      eager: authResult.data.eager,
-    });
-  } catch (err) {
-    console.error('Sign error:', err && err.message ? err.message : err);
-    res.status(500).json({ message: 'Could not generate authentication parameters' });
-  }
+  return res.status(410).json({ message: 'Cloud signature endpoint is disabled in local-file storage mode' });
 }
 
 async function update(req, res) {
@@ -94,14 +73,6 @@ async function remove(req, res) {
   try {
     const media = await getMediaById(req.params.id);
     if (!media) return res.status(404).json({ message: 'Not found' });
-
-    if (media.public_id) {
-      try {
-        await deleteFile(media.public_id);
-      } catch (error) {
-        console.warn('Cloudinary delete failed:', error && error.message ? error.message : error);
-      }
-    }
 
     await deleteMediaById(media._id || media.id);
     res.status(204).end();
