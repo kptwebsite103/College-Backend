@@ -7,18 +7,32 @@ const app = express();
 // ----------------------------
 // CORS configuration
 // ----------------------------
-const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+function normalizeOrigin(origin) {
+  return String(origin || '').trim().replace(/\/+$/, '');
+}
+
+const configuredOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',')
   : [
       'http://localhost:5173',
       'http://localhost:3000',
       'https://kpt-mangalore-autonomous.vercel.app',
+      'https://kpt-website-psi.vercel.app',
       'http://localhost:5174',
-      'http://localhost:5175'
+      'http://localhost:5175',
     ];
 
+const allowedOrigins = configuredOrigins
+  .map(normalizeOrigin)
+  .filter(Boolean);
+
 app.use(cors({
-  origin: allowedOrigins,
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    const requestOrigin = normalizeOrigin(origin);
+    const isAllowed = allowedOrigins.includes(requestOrigin);
+    return callback(null, isAllowed);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
