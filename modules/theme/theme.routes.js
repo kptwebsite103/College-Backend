@@ -12,9 +12,13 @@ const requireAdminRole = (req, res, next) => {
   }
 
   const userRoles = Array.isArray(user.roles) ? user.roles : [user.roles].filter(Boolean);
-  const hasAdminRole = userRoles.some(role =>
-    ['admin', 'super-admin'].includes(String(role).toLowerCase())
-  );
+  const hasAdminRole = userRoles.some((role) => {
+    const normalized = String(role || '')
+      .toLowerCase()
+      .trim()
+      .replace(/_/g, '-');
+    return ['admin', 'administrator', 'super-admin', 'superadmin'].includes(normalized);
+  });
 
   if (!hasAdminRole) {
     return res.status(403).json({ message: 'Admin role required' });

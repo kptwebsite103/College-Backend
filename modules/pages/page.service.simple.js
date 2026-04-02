@@ -2,6 +2,37 @@ const { query } = require('../../config/database');
 const slugify = require('../../utils/slugify');
 const { buildUpdate, generateId, parseDate, parseJson, toJson, withId } = require('../../utils/mysql-utils');
 
+function normalizeStatus(status, fallback = 'created') {
+  const value = String(status || '').trim().toLowerCase();
+  if (!value) return fallback;
+  if (value === 'created' || value === 'review') return 'pending';
+  if (value === 'approved' || value === 'published' || value === 'pending' || value === 'rejected' || value === 'draft' || value === 'archived') {
+    return value;
+  }
+  return fallback;
+}
+
+function normalizeLocaleContent(value) {
+  if (typeof value === 'string') {
+    return { html: value, javascript: '' };
+  }
+  if (value && typeof value === 'object') {
+    return {
+      html: typeof value.html === 'string' ? value.html : '',
+      javascript: typeof value.javascript === 'string' ? value.javascript : '',
+    };
+  }
+  return { html: '', javascript: '' };
+}
+
+function normalizeContent(content) {
+  const source = content && typeof content === 'object' ? content : {};
+  return {
+    en: normalizeLocaleContent(source.en),
+    kn: normalizeLocaleContent(source.kn),
+  };
+}
+
 function mapPage(row) {
   if (!row) return null;
   return withId({
@@ -10,8 +41,10 @@ function mapPage(row) {
     slug: row.slug,
     redirect_url: row.redirect_url || '',
     css: row.css || '',
-    content: parseJson(row.content, { en: { html: '', javascript: '' }, kn: { html: '', javascript: '' } }),
-    status: row.status || 'created',
+    content: normalizeContent(
+      parseJson(row.content, { en: { html: '', javascript: '' }, kn: { html: '', javascript: '' } }),
+    ),
+    status: normalizeStatus(row.status, 'created'),
     departmentId: row.departmentId || null,
     author: row.author || null,
     updatedBy: row.updatedBy || null,
@@ -58,8 +91,8 @@ async function createPage(data) {
       payload.slug,
       payload.redirect_url || '',
       payload.css || '',
-      toJson(payload.content || { en: { html: '', javascript: '' }, kn: { html: '', javascript: '' } }),
-      payload.status || 'created',
+      toJson(normalizeContent(payload.content || { en: { html: '', javascript: '' }, kn: { html: '', javascript: '' } })),
+      normalizeStatus(payload.status, 'created'),
       payload.departmentId || null,
       payload.author || null,
       payload.updatedBy || null,
@@ -127,7 +160,7 @@ async function listPublicAnnouncements(options = {}) {
 
   const rows = await query(
     `SELECT * FROM pages
-     WHERE status IN ('approved', 'published')
+     WHERE LOWER(status) IN ('approved', 'published')
      ORDER BY publishedAt DESC, createdAt DESC
      LIMIT 500`,
   );
@@ -151,7 +184,7 @@ async function getPageBySlug(slug) {
 
   let rows = await query(
     `SELECT * FROM pages
-     WHERE slug = ? AND status IN ('approved', 'published')
+     WHERE slug = ? AND LOWER(status) IN ('approved', 'published')
      LIMIT 1`,
     [slugWithSlash],
   );
@@ -159,7 +192,7 @@ async function getPageBySlug(slug) {
 
   rows = await query(
     `SELECT * FROM pages
-     WHERE slug = ? AND status IN ('approved', 'published')
+     WHERE slug = ? AND LOWER(status) IN ('approved', 'published')
      LIMIT 1`,
     [slugWithoutSlash],
   );
@@ -195,10 +228,11 @@ async function updatePage(id, update) {
 
   const transforms = {
     title: (v) => toJson(v || { en: '', kn: '' }),
-    content: (v) => toJson(v || { en: { html: '', javascript: '' }, kn: { html: '', javascript: '' } }),
+    content: (v) => toJson(normalizeContent(v || { en: { html: '', javascript: '' }, kn: { html: '', javascript: '' } })),
     versions: (v) => toJson(v || []),
     tags: (v) => toJson(v || []),
     announcement: (v) => toJson(v || null),
+    status: (v) => normalizeStatus(v, existing.status || 'created'),
   };
 
   const { set, values } = buildUpdate(

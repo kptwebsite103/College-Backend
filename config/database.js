@@ -75,7 +75,26 @@ async function connect() {
 
 async function query(sql, params = []) {
   const activePool = await connect();
-  const [rows] = await activePool.execute(sql, params);
+  const sanitizeBindValues = (value) => {
+    if (value === undefined) return null;
+    if (Array.isArray(value)) return value.map(sanitizeBindValues);
+    if (
+      value &&
+      typeof value === 'object' &&
+      !(value instanceof Date) &&
+      !Buffer.isBuffer(value)
+    ) {
+      const out = {};
+      for (const [k, v] of Object.entries(value)) {
+        out[k] = sanitizeBindValues(v);
+      }
+      return out;
+    }
+    return value;
+  };
+
+  const safeParams = sanitizeBindValues(params);
+  const [rows] = await activePool.execute(sql, safeParams);
   return rows;
 }
 
