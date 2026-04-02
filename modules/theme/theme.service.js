@@ -50,16 +50,26 @@ async function updateTheme(type, payload) {
     return createTheme({ ...payload, type });
   }
 
-  const { set, values } = buildUpdate(
-    {
-      ...payload,
-      colors: payload.colors !== undefined ? toJson(payload.colors || {}) : undefined,
-      contact: payload.contact !== undefined ? toJson(payload.contact || {}) : undefined,
-      active: payload.active !== undefined ? (payload.active ? 1 : 0) : undefined,
-      updatedAt: new Date(),
-    },
-    ['colors', 'contact', 'active', 'updatedAt'],
-  );
+  const updateSource = {
+    updatedAt: new Date(),
+  };
+
+  if (payload.colors !== undefined) {
+    updateSource.colors = toJson(payload.colors || {});
+  }
+  if (payload.contact !== undefined) {
+    updateSource.contact = toJson(payload.contact || {});
+  }
+  if (payload.active !== undefined) {
+    updateSource.active = payload.active ? 1 : 0;
+  }
+
+  const { set, values } = buildUpdate(updateSource, [
+    'colors',
+    'contact',
+    'active',
+    'updatedAt',
+  ]);
 
   if (set.length) {
     await query(`UPDATE themes SET ${set.join(', ')} WHERE type = ?`, [...values, type]);

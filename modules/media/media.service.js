@@ -108,7 +108,7 @@ async function walkUploadFiles(dir) {
   try {
     entries = await fs.promises.readdir(dir, { withFileTypes: true });
   } catch (err) {
-    if (err && err.code === 'ENOENT') return [];
+    if (err && ['ENOENT', 'EACCES', 'EPERM'].includes(err.code)) return [];
     throw err;
   }
 
@@ -174,26 +174,31 @@ async function syncMediaFromFilesystem() {
       const filename = path.basename(absPath);
       const format = path.extname(filename).replace('.', '').toLowerCase() || null;
 
-      await createMedia({
-        url,
-        title: deriveTitleFromFilename(filename),
-        filename,
-        thumbnailUrl: null,
-        format,
-        size: stat.size,
-        type: detectType(filename, null),
-        tags: [],
-        uploadedBy: null,
-        departmentId: null,
-        usageRefs: [],
-        localPath: absPath,
-        status: 'local',
-        metadata: {
-          source: 'filesystem-sync',
-        },
-      });
+      try {
+        await createMedia({
+          url,
+          title: deriveTitleFromFilename(filename),
+          filename,
+          thumbnailUrl: null,
+          format,
+          size: stat.size,
+          type: detectType(filename, null),
+          tags: [],
+          uploadedBy: null,
+          departmentId: null,
+          usageRefs: [],
+          localPath: absPath,
+          status: 'local',
+          metadata: {
+            source: 'filesystem-sync',
+          },
+        });
 
-      knownUrls.add(normalizedUrl);
+        knownUrls.add(normalizedUrl);
+      } catch (err) {
+        // Keep listing available even if one file fails to sync.
+        console.warn('[media] filesystem-sync skipped file:', absPath, err && err.message ? err.message : err);
+      }
     }
   }
 }
@@ -366,14 +371,24 @@ async function createMediaFromUpload({ file, filename, title, uploadedBy, depart
 }
 
 async function listCloudMedia() {
-  await syncMediaFromFilesystem();
+  try {
+    await syncMediaFromFilesystem();
+  } catch (err) {
+    // Never fail media listing because sync scan failed.
+    console.warn('[media] filesystem-sync failed:', err && err.message ? err.message : err);
+  }
 
   const rows = await query(
     `SELECT * FROM media
      ORDER BY createdAt DESC`,
   );
   const mapped = rows.map(mapMedia);
-  return annotateMediaFileAvailability(mapped);
+  try {
+    return await annotateMediaFileAvailability(mapped);
+  } catch (err) {
+    console.warn('[media] availability annotation failed:', err && err.message ? err.message : err);
+    return mapped;
+  }
 }
 
 async function getMediaById(id) {
