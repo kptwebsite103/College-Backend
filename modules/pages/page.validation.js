@@ -5,11 +5,15 @@ const localizedString = Joi.object({
   kn: Joi.string().allow('').required(),
 });
 
+const urlOrPath = Joi.alternatives()
+  .try(Joi.string().uri(), Joi.string().pattern(/^\/[^\s]*$/))
+  .allow('', null);
+
 const announcementSchema = Joi.object({
   text: localizedString.optional(),
   startDate: Joi.date().optional().allow(null),
   endDate: Joi.date().optional().allow(null),
-  attachmentUrl: Joi.string().uri().optional().allow('', null),
+  attachmentUrl: urlOrPath.optional(),
   attachmentLabel: Joi.string().optional().allow('', null),
 }).optional();
 
