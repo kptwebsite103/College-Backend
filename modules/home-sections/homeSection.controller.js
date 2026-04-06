@@ -35,8 +35,8 @@ async function list(req, res) {
 }
 
 async function listActive(req, res) {
-  const { departmentId } = req.query;
-  const docs = await getActiveHomeSections(departmentId);
+  const { departmentId, type } = req.query;
+  const docs = await getActiveHomeSections(departmentId, type);
   res.json(docs);
 }
 

@@ -149,12 +149,16 @@ async function removeHomeSection(id) {
   return doc;
 }
 
-async function getActiveHomeSections(departmentId) {
+async function getActiveHomeSections(departmentId, type) {
   const where = ['active = 1'];
   const values = [];
   if (departmentId) {
     where.push('departmentId = ?');
     values.push(departmentId);
+  }
+  if (type) {
+    where.push('type = ?');
+    values.push(type);
   }
 
   const rows = await query(
