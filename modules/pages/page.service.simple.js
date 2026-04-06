@@ -148,8 +148,14 @@ function isAnnouncementActive(page, now) {
   const startDate = announcement.startDate ? new Date(announcement.startDate) : null;
   const endDate = announcement.endDate ? new Date(announcement.endDate) : null;
 
-  if (startDate && !Number.isNaN(startDate.getTime()) && startDate > now) return false;
-  if (endDate && !Number.isNaN(endDate.getTime()) && endDate < now) return false;
+  if (startDate && !Number.isNaN(startDate.getTime())) {
+    startDate.setHours(0, 0, 0, 0);
+    if (startDate > now) return false;
+  }
+  if (endDate && !Number.isNaN(endDate.getTime())) {
+    endDate.setHours(23, 59, 59, 999);
+    if (endDate < now) return false;
+  }
   return true;
 }
 

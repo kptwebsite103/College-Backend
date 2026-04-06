@@ -19,7 +19,7 @@ const SlideSchema = Joi.object({
 
 const createSchema = Joi.object({
   type: Joi.string()
-    .valid("banner", "slider", "block", "hero_text", "page_content")
+    .valid("banner", "slider", "gallery", "block", "hero_text", "page_content")
     .required(),
   title: LocalizedString.optional(),
   active: Joi.boolean().optional(),
@@ -67,7 +67,7 @@ const createSchema = Joi.object({
 
   // Slider fields
   slides: Joi.array().items(SlideSchema).when("type", {
-    is: "slider",
+    is: Joi.valid("slider", "gallery"),
     then: Joi.required(),
     otherwise: Joi.forbidden(),
   }),
@@ -92,7 +92,7 @@ const createSchema = Joi.object({
 
 const updateSchema = Joi.object({
   type: Joi.string()
-    .valid("banner", "slider", "block", "hero_text", "page_content")
+    .valid("banner", "slider", "gallery", "block", "hero_text", "page_content")
     .optional(),
   title: LocalizedString.optional(),
   active: Joi.boolean().optional(),
