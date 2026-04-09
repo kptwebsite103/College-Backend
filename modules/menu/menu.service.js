@@ -20,6 +20,31 @@ function mapMenu(row) {
   });
 }
 
+function normalizeOrder(order, fallback = 1) {
+  const value = Number(order);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.floor(value));
+}
+
+async function getNextAvailableNavigationOrder(requestedOrder, excludeId) {
+  const rows = await query(
+    `SELECT order_no FROM menus WHERE type = 'navigation' ${excludeId ? 'AND _id <> ?' : ''}`,
+    excludeId ? [excludeId] : [],
+  );
+
+  const taken = new Set(
+    rows
+      .map((row) => Number(row.order_no))
+      .filter((order) => Number.isInteger(order) && order > 0),
+  );
+
+  let next = normalizeOrder(requestedOrder, 1);
+  while (taken.has(next)) {
+    next += 1;
+  }
+  return next;
+}
+
 async function slugExists(slug, excludeId) {
   if (!slug) return false;
   const rows = await query(
@@ -38,6 +63,11 @@ async function createMenu(payload) {
 
   const now = new Date();
   const _id = generateId();
+  const menuType = payload.type || 'navigation';
+  const orderNo =
+    menuType === 'navigation'
+      ? await getNextAvailableNavigationOrder(payload.order)
+      : Number(payload.order || 0);
 
   await query(
     `INSERT INTO menus
@@ -47,13 +77,13 @@ async function createMenu(payload) {
       _id,
       toJson(payload.name || {}),
       payload.slug,
-      payload.type || 'navigation',
+      menuType,
       payload.url || null,
       payload.redirect_url || null,
       toJson(payload.items || []),
       payload.status || 'Created',
       payload.active === false ? 0 : 1,
-      Number(payload.order || 0),
+      orderNo,
       payload.departmentId || null,
       now,
       now,
@@ -103,6 +133,11 @@ async function getMenu(id) {
 }
 
 async function updateMenu(id, payload) {
+  const currentRows = await query('SELECT _id, type, order_no FROM menus WHERE _id = ? LIMIT 1', [id]);
+  if (!currentRows.length) return null;
+  const current = currentRows[0];
+  const currentType = current.type || 'navigation';
+
   if (payload && payload.slug && await slugExists(payload.slug, id)) {
     const err = new Error('Slug already exists');
     err.status = 409;
@@ -113,6 +148,19 @@ async function updateMenu(id, payload) {
   if (Object.prototype.hasOwnProperty.call(source, 'order')) {
     source.order_no = source.order;
     delete source.order;
+  }
+
+  const nextType = source.type || currentType;
+  if (nextType === 'navigation') {
+    const hasRequestedOrder = Object.prototype.hasOwnProperty.call(source, 'order_no');
+    const requestedOrder = hasRequestedOrder
+      ? source.order_no
+      : Number(current.order_no) > 0
+        ? Number(current.order_no)
+        : undefined;
+    source.order_no = await getNextAvailableNavigationOrder(requestedOrder, id);
+  } else if (Object.prototype.hasOwnProperty.call(source, 'order_no')) {
+    source.order_no = Number(source.order_no || 0);
   }
 
   const transforms = {

@@ -72,13 +72,15 @@ const createSchema = Joi.object({
     otherwise: Joi.forbidden(),
   }),
 
-  // Block fields
+  // Block/Gallery fields
   blockContent: Joi.object({
     en: Joi.any().optional(),
     kn: Joi.any().optional(),
   }).when("type", {
-    is: "block",
-    then: Joi.required(),
+    switch: [
+      { is: "block", then: Joi.required() },
+      { is: "gallery", then: Joi.optional() },
+    ],
     otherwise: Joi.forbidden(),
   }),
 

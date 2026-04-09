@@ -21,10 +21,41 @@ function normalizeStatus(status, fallback = 'Created') {
   return ALLOWED_STATUSES.includes(status) ? status : fallback;
 }
 
+function normalizeSiblingOrders(items) {
+  if (!Array.isArray(items)) return items;
+
+  const used = new Set();
+  let nextAuto = 1;
+
+  return items.map((item) => {
+    const next = { ...item };
+    const requested = Number(next.order);
+    let resolvedOrder =
+      Number.isFinite(requested) && requested > 0 ? Math.floor(requested) : null;
+
+    if (!resolvedOrder || used.has(resolvedOrder)) {
+      while (used.has(nextAuto)) {
+        nextAuto += 1;
+      }
+      resolvedOrder = nextAuto;
+      nextAuto += 1;
+    }
+
+    used.add(resolvedOrder);
+    next.order = resolvedOrder;
+
+    if (Array.isArray(next.items)) {
+      next.items = normalizeSiblingOrders(next.items);
+    }
+
+    return next;
+  });
+}
+
 function sanitizeItems(items, allowApproved) {
   if (!Array.isArray(items)) return items;
 
-  return items.map((item) => {
+  const cleaned = items.map((item) => {
     const next = { ...item };
     const hasId = Boolean(next._id || next.id);
     const status = normalizeStatus(next.status, 'Created');
@@ -45,6 +76,8 @@ function sanitizeItems(items, allowApproved) {
 
     return next;
   });
+
+  return normalizeSiblingOrders(cleaned);
 }
 
 async function list(req, res) {
