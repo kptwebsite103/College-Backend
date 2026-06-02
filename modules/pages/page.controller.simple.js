@@ -84,7 +84,8 @@ async function get(req, res) {
 
 async function getBySlug(req, res) {
   try {
-    const page = await getPageBySlug(req.params.slug);
+    const slug = req.params.slug || req.params[0] || '';
+    const page = await getPageBySlug(slug);
     if (!page) return res.status(404).json({ message: 'Not found' });
     res.json(page);
   } catch (err) {

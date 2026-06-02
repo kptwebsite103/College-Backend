@@ -33,12 +33,63 @@ function normalizeContent(content) {
   };
 }
 
+function normalizePageSlug(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  let decoded = raw;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch (_error) {
+    decoded = raw;
+  }
+
+  const segments = String(decoded)
+    .replace(/\\/g, '/')
+    .split('/')
+    .map((segment) => slugify(segment))
+    .filter(Boolean);
+
+  return segments.join('/');
+}
+
+function buildSlugCandidates(slug) {
+  const raw = String(slug || '').trim();
+  if (!raw) return [];
+
+  const decoded = (() => {
+    try {
+      return decodeURIComponent(raw);
+    } catch (_error) {
+      return raw;
+    }
+  })().replace(/\\/g, '/');
+
+  const normalized = normalizePageSlug(decoded);
+  const candidates = new Set();
+  const addCandidate = (value) => {
+    const text = String(value || '').trim();
+    if (text) candidates.add(text);
+  };
+
+  addCandidate(raw);
+  addCandidate(raw.replace(/^\/+/, ''));
+  addCandidate(raw.startsWith('/') ? raw : `/${raw}`);
+  addCandidate(decoded);
+  addCandidate(decoded.replace(/^\/+/, ''));
+  addCandidate(decoded.startsWith('/') ? decoded : `/${decoded}`);
+  addCandidate(normalized);
+  addCandidate(normalized ? `/${normalized}` : '');
+
+  return [...candidates];
+}
+
 function mapPage(row) {
   if (!row) return null;
   return withId({
     _id: row._id,
     title: parseJson(row.title, { en: '', kn: '' }),
-    slug: row.slug,
+    slug: normalizePageSlug(row.slug) || String(row.slug || '').trim(),
     redirect_url: row.redirect_url || '',
     css: row.css || '',
     content: normalizeContent(
@@ -59,11 +110,15 @@ function mapPage(row) {
 }
 
 async function slugExists(slug, excludeId) {
+  const target = normalizePageSlug(slug);
+  if (!target) return false;
+
   const rows = await query(
-    `SELECT _id FROM pages WHERE slug = ? ${excludeId ? 'AND _id <> ?' : ''} LIMIT 1`,
-    excludeId ? [slug, excludeId] : [slug],
+    `SELECT _id, slug FROM pages ${excludeId ? 'WHERE _id <> ?' : ''}`,
+    excludeId ? [excludeId] : [],
   );
-  return rows.length > 0;
+
+  return rows.some((row) => normalizePageSlug(row.slug) === target);
 }
 
 async function createPage(data) {
@@ -71,6 +126,7 @@ async function createPage(data) {
   if (!payload.slug || !String(payload.slug).trim()) {
     payload.slug = slugify(payload.title && payload.title.en ? payload.title.en : 'page');
   }
+  payload.slug = normalizePageSlug(payload.slug);
 
   const base = payload.slug;
   let suffix = 0;
@@ -171,7 +227,7 @@ async function listPublicAnnouncements(options = {}) {
     `SELECT * FROM pages
      WHERE LOWER(status) IN ('approved', 'published')
      ORDER BY publishedAt DESC, createdAt DESC
-     LIMIT 500`,
+     `,
   );
 
   const all = rows
@@ -188,39 +244,47 @@ async function getPageById(id) {
 }
 
 async function getPageBySlug(slug) {
-  const slugWithSlash = String(slug || '').startsWith('/') ? String(slug) : `/${slug}`;
-  const slugWithoutSlash = String(slug || '').startsWith('/') ? String(slug).slice(1) : String(slug);
+  const candidates = buildSlugCandidates(slug);
+  for (const candidate of candidates) {
+    const rows = await query(
+      `SELECT * FROM pages
+       WHERE slug = ? AND LOWER(status) IN ('approved', 'published')
+       LIMIT 1`,
+      [candidate],
+    );
+    if (rows.length) return mapPage(rows[0]);
+  }
 
-  let rows = await query(
-    `SELECT * FROM pages
-     WHERE slug = ? AND LOWER(status) IN ('approved', 'published')
-     LIMIT 1`,
-    [slugWithSlash],
-  );
-  if (rows.length) return mapPage(rows[0]);
+  const normalizedTarget = normalizePageSlug(slug);
+  if (!normalizedTarget) return null;
 
-  rows = await query(
+  const rows = await query(
     `SELECT * FROM pages
-     WHERE slug = ? AND LOWER(status) IN ('approved', 'published')
-     LIMIT 1`,
-    [slugWithoutSlash],
+     WHERE LOWER(status) IN ('approved', 'published')
+     ORDER BY publishedAt DESC, createdAt DESC
+     LIMIT 500`,
   );
-  return mapPage(rows[0]);
+  const matched = rows.find((row) => normalizePageSlug(row.slug) === normalizedTarget);
+  return mapPage(matched);
 }
 
 async function updatePage(id, update) {
   const existing = await getPageById(id);
   if (!existing) return null;
 
-  if (update.slug && update.slug !== existing.slug) {
-    if (await slugExists(update.slug, id)) {
+  const normalizedSlug = normalizePageSlug(
+    Object.prototype.hasOwnProperty.call(update, 'slug') ? update.slug : existing.slug,
+  );
+
+  if (normalizedSlug && normalizedSlug !== normalizePageSlug(existing.slug)) {
+    if (await slugExists(normalizedSlug, id)) {
       const err = new Error('Slug already exists');
       err.status = 409;
       throw err;
     }
   }
 
-  const source = { ...update, updatedAt: new Date() };
+  const source = { ...update, slug: normalizedSlug || existing.slug, updatedAt: new Date() };
 
   // Keep lightweight version history for content/title edits.
   if (update.title || update.content) {
