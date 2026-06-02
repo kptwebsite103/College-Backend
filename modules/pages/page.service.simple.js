@@ -140,7 +140,10 @@ async function listPages(filter = {}, options = {}) {
 }
 
 function isAnnouncementTag(tags) {
-  return Array.isArray(tags) && tags.some((tag) => String(tag).toLowerCase() === 'announcement');
+  return Array.isArray(tags) && tags.some((tag) => {
+    const val = String(tag).toLowerCase();
+    return val === 'announcement' || val === 'important_link';
+  });
 }
 
 function isAnnouncementActive(page, now) {
